@@ -1,5 +1,9 @@
 name: Build Release Binaries
 
+# 🔐 РАЗРЕШЕНИЯ ДЛЯ СОЗДАНИЯ РЕЛИЗОВ (ИСПРАВЛЕНИЕ ОШИБКИ 403)
+permissions:
+  contents: write
+
 on:
   push:
     tags:
@@ -8,8 +12,10 @@ on:
 jobs:
   build:
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30  # ⏱ Явный таймаут, чтобы сборка не отменялась
     
     strategy:
+      fail-fast: false  # 🔄 Не отменять другие ОС, если одна упала
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.11"]  # Собираем на одной стабильной версии
@@ -36,7 +42,6 @@ jobs:
 
       - name: Build standalone binary with PyInstaller
         run: |
-          # Windows: .exe, Linux/macOS: без расширения
           pyinstaller --onefile \
             --name passgen-${{ matrix.os }} \
             --hidden-import=src \
@@ -49,10 +54,24 @@ jobs:
 
       - name: Verify binary was created
         run: |
-          # Проверка, что файл действительно создан
-          ls -la dist/
-          # Быстрый тест: запустить с --help
-          ./dist/passgen-${{ matrix.os }} --help || dist/passgen-${{ matrix.os }}.exe --help || echo "Binary check skipped"
+          echo "📁 Contents of dist/:"
+          # Кроссплатформенная проверка (работает и на Windows, и на Linux/macOS)
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            dir dist
+          else
+            ls -la dist/
+          fi
+          
+          echo "🧪 Testing binary --help:"
+          # Проверяем наличие файла и запускаем
+          if [ -f "dist/passgen-${{ matrix.os }}" ]; then
+            ./dist/passgen-${{ matrix.os }} --help
+          elif [ -f "dist/passgen-${{ matrix.os }}.exe" ]; then
+            ./dist/passgen-${{ matrix.os }}.exe --help
+          else
+            echo "⚠️ Binary not found in dist/, checking build logs above"
+            exit 1
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -76,10 +95,10 @@ jobs:
             
             ### 🚀 Usage:
             ```bash
-            # Windows (Command Prompt / PowerShell)
-            passgen-windows-latest.exe --random --length 16
+            # Windows (PowerShell / CMD)
+            .\passgen-windows-latest.exe --random --length 16
             
-            # Linux / macOS (Terminal)
+            # Linux / macOS
             chmod +x passgen-ubuntu-latest
             ./passgen-ubuntu-latest --random --length 16
             ```
