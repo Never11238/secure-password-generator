@@ -318,25 +318,27 @@ if __name__ == "__main__":
     try:
         # Run the main CLI application
         main()
-    except SystemExit as e:
+    except SystemExit:
         # argparse calls sys.exit(0) on --help or success, and sys.exit(2) on error
         if len(sys.argv) == 1:
-            print("\n💡 Tip: Use --help to see all commands.")
+            print("\n[TIP] Use --help to see all commands.")
 
-        # Keep the console window open so the user can read the output
-        # This prevents the window from closing immediately when double-clicked
-        try:
-            input("\n⏸️ Press Enter to close...")
-        except (EOFError, KeyboardInterrupt):
-            pass
+        # Keep console open ONLY if running interactively (e.g., double-click on Windows)
+        # Skips pause in CI/CD or when output is redirected
+        if sys.stdin.isatty() and sys.stdout.isatty():
+            try:
+                input("\n[Press Enter to close...]")
+            except (EOFError, KeyboardInterrupt):
+                pass
         sys.exit(0)
     except Exception as e:
-        # Catch any other unexpected errors (e.g., FileNotFoundError, PermissionError)
-        print(f"\n❌ Unhandled error: {e}")
+        # Catch any other unexpected errors
+        print(f"\n[ERROR] Unhandled error: {e}")
 
-        # Keep window open to show the error message
-        try:
-            input("\n⏸️ Press Enter to close...")
-        except (EOFError, KeyboardInterrupt):
-            pass
+        # Keep window open only if running interactively
+        if sys.stdin.isatty() and sys.stdout.isatty():
+            try:
+                input("\n[Press Enter to close...]")
+            except (EOFError, KeyboardInterrupt):
+                pass
         sys.exit(1)
