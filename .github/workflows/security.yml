@@ -1,10 +1,10 @@
-﻿name: Security Check
+name: Security Check
 
 on:
   push:
-branches: [main]
+    branches: [main, master]
   pull_request:
-branches: [main]
+    branches: [main, master]
 
 jobs:
   security:
