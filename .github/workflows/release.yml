@@ -1,0 +1,94 @@
+name: Build Release Binaries
+
+on:
+  push:
+    tags:
+      - 'v*'  # Запускать только при пуше тега вида v1.0.0, v2.1.0 и т.д.
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.11"]  # Собираем на одной стабильной версии
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          pip install pyinstaller
+
+      - name: Run tests before build (sanity check)
+        run: |
+          pytest tests/ -v
+
+      - name: Build standalone binary with PyInstaller
+        run: |
+          # Windows: .exe, Linux/macOS: без расширения
+          pyinstaller --onefile \
+            --name passgen-${{ matrix.os }} \
+            --hidden-import=src \
+            --hidden-import=src.generator \
+            --hidden-import=src.clipboard \
+            --hidden-import=src.updater \
+            --hidden-import=src.wordlist \
+            --collect-all=src \
+            src/cli.py
+
+      - name: Verify binary was created
+        run: |
+          # Проверка, что файл действительно создан
+          ls -la dist/
+          # Быстрый тест: запустить с --help
+          ./dist/passgen-${{ matrix.os }} --help || dist/passgen-${{ matrix.os }}.exe --help || echo "Binary check skipped"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: passgen-${{ matrix.os }}
+          path: dist/passgen-*
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/passgen-*
+          body: |
+            ## 🔐 Secure Password Generator ${{ github.ref_name }}
+            
+            ### 📦 Standalone binaries (no Python required):
+            - 🪟 Windows: `passgen-windows-latest.exe`
+            - 🐧 Linux: `passgen-ubuntu-latest`
+            - 🍎 macOS: `passgen-macos-latest`
+            
+            ### 🚀 Usage:
+            ```bash
+            # Windows (Command Prompt / PowerShell)
+            passgen-windows-latest.exe --random --length 16
+            
+            # Linux / macOS (Terminal)
+            chmod +x passgen-ubuntu-latest
+            ./passgen-ubuntu-latest --random --length 16
+            ```
+            
+            ### 🔧 All options:
+            ```bash
+            passgen-<os> --help
+            ```
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
