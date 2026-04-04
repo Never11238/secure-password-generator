@@ -1,0 +1,92 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "secure-password-generator"
+version = "2.0.0"
+description = "NIST-compliant password generator"
+authors = [{name = "Shekhovtsov"}]
+license = "MIT"
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security :: Cryptography",
+]
+
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
+    "bandit>=1.7.0",
+    "safety>=2.3.0",
+]
+argon2 = ["argon2-cffi>=23.1.0"]
+enhanced = ["pyperclip>=1.8.0", "zxcvbn>=4.4.28"]
+
+[project.scripts]
+passgen = "src.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+# ============================================================
+# RUFF CONFIGURATION (Linting + Style + Security)
+# ============================================================
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+select = [
+    "E", "F", "W", "I", "S", "B", "UP", "RUF",
+]
+ignore = [
+    "E501", "S101", "S404", "S603",
+]
+
+[tool.ruff.per-file-ignores]
+"tests/*.py" = ["S101", "S105"]
+"src/cli.py" = ["S101", "S603"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+combine-as-imports = true
+
+# ============================================================
+# BANDIT CONFIGURATION (Security Scanning)
+# ============================================================
+[tool.bandit]
+exclude_dirs = ["tests", ".venv", "build", "dist", "scripts"]
+skips = ["B101", "B404", "B603", "S101"]
+targets = ["src/"]
+severity = "medium"
+confidence = "medium"
+
+# ============================================================
+# PYTEST CONFIGURATION (Unit Tests + Coverage)
+# ============================================================
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v --cov=src --cov-report=term-missing --cov-fail-under=90"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+]

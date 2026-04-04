@@ -1,0 +1,19 @@
+---
+exclude_dirs:
+  - tests
+  - .venv
+  - build
+  - dist
+  - scripts
+
+skips:
+  - B101  # assert statements (used in tests)
+  - B404  # subprocess import (needed for clipboard)
+  - B603  # subprocess without shell=True (safe usage)
+  - S101  # assert statements
+
+targets:
+  - src/
+
+severity: medium
+confidence: medium
