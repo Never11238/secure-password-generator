@@ -13,7 +13,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
 
-    # Use Bash for all run steps (works consistently across Windows, macOS, Linux)
     defaults:
       run:
         shell: bash
@@ -75,62 +74,157 @@ jobs:
             exit 1
           fi
 
-      # Generate helper scripts for one-click execution
-      - name: Create Windows batch file
+      # 🪟 WINDOWS: Генерация всех .bat скриптов
+      - name: Create Windows helper scripts
         if: matrix.os == 'windows-latest'
         run: |
-          echo @echo off > gen_pass.bat
-          echo chcp 65001 ^>nul >> gen_pass.bat
-          echo cd /d "%%~dp0" >> gen_pass.bat
-          echo passgen-${{ matrix.os }}.exe --random -l 24 --copy --no-warnings >> gen_pass.bat
-          echo pause ^>nul >> gen_pass.bat
-          cp gen_pass.bat dist/
+          cd dist/
+          EXE="passgen-${{ matrix.os }}.exe"
 
-      - name: Create Unix shell script
+          cat > gen_random.bat << EOF
+          @echo off
+          chcp 65001 >nul
+          cd /d "%%~dp0"
+          echo 🔐 Generating secure random password...
+          %EXE% --random -l 24 --copy --no-warnings
+          echo ✅ Copied to clipboard!
+          pause >nul
+          EOF
+
+          cat > gen_passphrase.bat << EOF
+          @echo off
+          chcp 65001 >nul
+          cd /d "%%~dp0"
+          echo 🔐 Generating secure passphrase...
+          %EXE% --passphrase --words 5 --capitalize --add-number --copy
+          echo ✅ Passphrase copied to clipboard!
+          pause >nul
+          EOF
+
+          cat > check_password.bat << EOF
+          @echo off
+          chcp 65001 >nul
+          cd /d "%%~dp0"
+          set /p "PASS=Enter password to check: "
+          %EXE% --check "%%PASS%%"
+          echo.
+          pause
+          EOF
+
+          cat > hash_password.bat << EOF
+          @echo off
+          chcp 65001 >nul
+          cd /d "%%~dp0"
+          set /p "PASS=Enter password to hash: "
+          %EXE% --hash "%%PASS%%" --hash-algo argon2
+          echo.
+          pause
+          EOF
+
+          cat > update_wordlists.bat << EOF
+          @echo off
+          chcp 65001 >nul
+          cd /d "%%~dp0"
+          echo 🌐 Updating wordlists...
+          %EXE% --update-all
+          echo ✅ Wordlists updated!
+          pause >nul
+          EOF
+
+      # 🐧/🍎 UNIX: Генерация всех .sh скриптов
+      - name: Create Unix helper scripts
         if: matrix.os != 'windows-latest'
         run: |
-          echo '#!/bin/bash' > gen_pass.sh
-          echo 'cd "$(dirname "$0")"' >> gen_pass.sh
-          echo './passgen-${{ matrix.os }} --random -l 24 --copy --no-warnings' >> gen_pass.sh
-          echo 'read -p "Press Enter to exit..."' >> gen_pass.sh
-          chmod +x gen_pass.sh
-          cp gen_pass.sh dist/
+          cd dist/
+          EXE="./passgen-${{ matrix.os }}"
+
+          cat > gen_random.sh << EOF
+          #!/bin/bash
+          cd "\$(dirname "\$0")"
+          echo "🔐 Generating secure random password..."
+          $EXE --random -l 24 --copy --no-warnings
+          echo "✅ Copied to clipboard!"
+          read -p "Press Enter to exit..."
+          EOF
+
+          cat > gen_passphrase.sh << EOF
+          #!/bin/bash
+          cd "\$(dirname "\$0")"
+          echo "🔐 Generating secure passphrase..."
+          $EXE --passphrase --words 5 --capitalize --add-number --copy
+          echo "✅ Passphrase copied to clipboard!"
+          read -p "Press Enter to exit..."
+          EOF
+
+          cat > check_password.sh << EOF
+          #!/bin/bash
+          cd "\$(dirname "\$0")"
+          read -p "Enter password to check: " PASS
+          $EXE --check "\$PASS"
+          echo ""
+          read -p "Press Enter to exit..."
+          EOF
+
+          cat > hash_password.sh << EOF
+          #!/bin/bash
+          cd "\$(dirname "\$0")"
+          read -p "Enter password to hash: " PASS
+          $EXE --hash "\$PASS" --hash-algo argon2
+          echo ""
+          read -p "Press Enter to exit..."
+          EOF
+
+          cat > update_wordlists.sh << EOF
+          #!/bin/bash
+          cd "\$(dirname "\$0")"
+          echo "🌐 Updating wordlists..."
+          $EXE --update-all
+          echo "✅ Wordlists updated!"
+          read -p "Press Enter to exit..."
+          EOF
+
+          chmod +x *.sh
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: passgen-${{ matrix.os }}
-          path: dist/  # Uploads binaries + helper scripts
+          path: dist/
           retention-days: 30
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*  # Attaches all files from dist/ to the release
+          files: dist/*
           body: |
             ## 🔐 Secure Password Generator ${{ github.ref_name }}
             
             ### 📦 Standalone binaries (no Python required):
-            - 🪟 Windows: `passgen-windows-latest.exe` + `gen_pass.bat`
-            - 🐧 Linux: `passgen-ubuntu-latest` + `gen_pass.sh`
-            - 🍎 macOS: `passgen-macos-latest` + `gen_pass.sh`
+            Each platform includes ready-to-run helper scripts:
+            - 🪟 **Windows**: `passgen-windows-latest.exe` + `gen_*.bat` files
+            - 🐧 **Linux**: `passgen-ubuntu-latest` + `gen_*.sh` files
+            - 🍎 **macOS**: `passgen-macos-latest` + `gen_*.sh` files
             
-            ### 🚀 Usage:
+            ### 🚀 Quick Start:
             #### Windows
-            Double-click `gen_pass.bat` to instantly generate & copy a password.
+            Double-click any `.bat` file to run instantly:
+            - `gen_random.bat` → Generate & copy strong password
+            - `gen_passphrase.bat` → Generate mnemonic passphrase
+            - `check_password.bat` → Test strength of existing password
+            - `hash_password.bat` → Hash password with Argon2
+            - `update_wordlists.bat` → Update EFF wordlists
+            
             Or via terminal:
             ```powershell
             .\passgen-windows-latest.exe --random --length 16
             ```
             
             #### Linux / macOS
-            Make executable and run:
+            Make scripts executable once, then double-click or run:
             ```bash
-            chmod +x gen_pass.sh
-            ./gen_pass.sh
-            # Or directly:
-            ./passgen-ubuntu-latest --random --length 16
+            chmod +x gen_*.sh
+            ./gen_random.sh
             ```
             
             ### 🔧 All options:
