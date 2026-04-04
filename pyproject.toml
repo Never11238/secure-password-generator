@@ -81,6 +81,7 @@ skips = [
     "S101",  # assert used
     "S404",  # subprocess module
     "S603",  # subprocess call
+]
 targets = ["src/"]
 severity = "medium"
 confidence = "medium"
