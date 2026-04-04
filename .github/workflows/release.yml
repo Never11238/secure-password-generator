@@ -9,6 +9,7 @@ on:
       - 'v*'
 
 jobs:
+  # 🔨 STAGE 1: Build binaries on all OS platforms
   build:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
@@ -72,126 +73,67 @@ jobs:
             exit 1
           fi
 
-      # 🪟 WINDOWS: Generate helper scripts with Russian names (PowerShell, no heredoc)
-      - name: Create Windows helper scripts
-        if: matrix.os == 'windows-latest'
-        shell: powershell
+      # 🐍 STABLE: Generate helper scripts using Python (avoids shell escaping/parser issues)
+      - name: Organize dist and generate helper scripts
         run: |
-          $dist = "dist"
-          $exe = "passgen-${{ matrix.os }}.exe"
-          $batDir = "$dist/Windows"
-          
-          New-Item -ItemType Directory -Force -Path $batDir | Out-Null
-          Move-Item "$dist/$exe" "$batDir/" -Force
-          
-          function Write-Bat {
-              param([string]$Path, [string[]]$Lines)
-              $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-              [System.IO.File]::WriteAllLines($Path, $Lines, $utf8NoBom)
-          }
-          
-          Write-Bat "$batDir/01_Сгенерировать_пароль_и_скопировать.bat" @(
-              '@echo off',
-              'chcp 65001 >nul',
-              'cd /d "%~dp0"',
-              'echo Generating secure password...',
-              "$exe --random -l 24 --copy --no-warnings",
-              'echo Password copied to clipboard!',
-              'pause >nul'
-          )
-          
-          Write-Bat "$batDir/02_Сгенерировать_фразу_пароль.bat" @(
-              '@echo off',
-              'chcp 65001 >nul',
-              'cd /d "%~dp0"',
-              'echo Generating mnemonic passphrase...',
-              "$exe --passphrase --words 5 --capitalize --add-number --copy",
-              'echo Passphrase copied to clipboard!',
-              'pause >nul'
-          )
-          
-          Write-Bat "$batDir/03_Проверить_стойкость_пароля.bat" @(
-              '@echo off',
-              'chcp 65001 >nul',
-              'cd /d "%~dp0"',
-              'set /p PASS=Enter password to check: ',
-              "$exe --check `%PASS%`",
-              'echo.',
-              'pause'
-          )
-          
-          Write-Bat "$batDir/04_Хешировать_пароль_Argon2.bat" @(
-              '@echo off',
-              'chcp 65001 >nul',
-              'cd /d "%~dp0"',
-              'set /p PASS=Enter password to hash: ',
-              "$exe --hash `%PASS%` --hash-algo argon2",
-              'echo.',
-              'pause'
-          )
-          
-          Write-Bat "$batDir/05_Обновить_словари_слов.bat" @(
-              '@echo off',
-              'chcp 65001 >nul',
-              'cd /d "%~dp0"',
-              'echo Updating wordlists...',
-              "$exe --update-all",
-              'echo Wordlists updated!',
-              'pause >nul'
-          )
+          python << 'PYEOF'
+          import os, shutil
 
-      # 🐧/🍎 UNIX: Generate helper scripts (simple echo, no heredoc)
-      - name: Create Unix helper scripts
-        if: matrix.os != 'windows-latest'
-        run: |
-          PLATFORM_NAME=$(echo "${{ matrix.os }}" | sed 's/-latest//')
-          PLATFORM_DIR="dist/$PLATFORM_NAME"
+          matrix_os = "${{ matrix.os }}"
+          is_win = matrix_os == "windows-latest"
+          exe_name = f"passgen-{matrix_os}{'.exe' if is_win else ''}"
+          folder = "Windows" if is_win else matrix_os.replace("-latest", "")
+          target = os.path.join("dist", folder)
+          os.makedirs(target, exist_ok=True)
           
-          mkdir -p "$PLATFORM_DIR"
-          mv "dist/passgen-${{ matrix.os }}" "$PLATFORM_DIR/"
-          
-          # Helper: create script with proper escaping
-          make_script() {
-              local file="$1"
-              local desc="$2"
-              local cmd="$3"
-              local ok="$4"
-              
-              printf '#!/bin/bash\ncd "$(dirname "$0")"\necho "🔐 %s"\n./passgen-%s %s\necho "✅ %s"\nread -p "Press Enter to exit..."\n' \
-                  "$desc" "${{ matrix.os }}" "$cmd" "$ok" > "$PLATFORM_DIR/$file"
-              chmod +x "$PLATFORM_DIR/$file"
-          }
-          
-          make_script "01_Сгенерировать_пароль_и_скопировать.sh" \
-              "Generating secure password..." \
-              "--random -l 24 --copy --no-warnings" \
-              "Password copied to clipboard!"
-          
-          make_script "02_Сгенерировать_фразу_пароль.sh" \
-              "Generating mnemonic passphrase..." \
-              "--passphrase --words 5 --capitalize --add-number --copy" \
-              "Passphrase copied to clipboard!"
-          
-          # Interactive scripts (check/hash) - written directly with careful quoting
-          printf '%s\n' '#!/bin/bash' 'cd "$(dirname "$0")"' 'read -p "Enter password to check: " PASS' "./passgen-${{ matrix.os }} --check \"\$PASS\"" 'echo ""' 'read -p "Press Enter to exit..."' > "$PLATFORM_DIR/03_Проверить_стойкость_пароля.sh"
-          chmod +x "$PLATFORM_DIR/03_Проверить_стойкость_пароля.sh"
-          
-          printf '%s\n' '#!/bin/bash' 'cd "$(dirname "$0")"' 'read -p "Enter password to hash: " PASS' "./passgen-${{ matrix.os }} --hash \"\$PASS\" --hash-algo argon2" 'echo ""' 'read -p "Press Enter to exit..."' > "$PLATFORM_DIR/04_Хешировать_пароль_Argon2.sh"
-          chmod +x "$PLATFORM_DIR/04_Хешировать_пароль_Argon2.sh"
-          
-          make_script "05_Обновить_словари_слов.sh" \
-              "Updating wordlists..." \
-              "--update-all" \
-              "Wordlists updated!"
+          # Move binary into platform folder
+          shutil.move(os.path.join("dist", exe_name), target)
 
+          def write_file(name, content):
+              path = os.path.join(target, name)
+              # newline='' prevents Python from auto-converting line endings
+              with open(path, "w", encoding="utf-8", newline="") as f:
+                  f.write(content)
+              if not is_win:
+                  os.chmod(path, 0o755)
+
+          cmd = exe_name
+          if is_win:
+              eol = "\r\n"
+              write_file("01_Сгенерировать_пароль_и_скопировать.bat", 
+                  f"@echo off{eol}chcp 65001 >nul{eol}cd /d \"%~dp0\"{eol}echo 🔐 Генерация надёжного пароля...{eol}{cmd} --random -l 24 --copy --no-warnings{eol}echo ✅ Пароль скопирован в буфер обмена!{eol}pause >nul")
+              write_file("02_Сгенерировать_фразу_пароль.bat",
+                  f"@echo off{eol}chcp 65001 >nul{eol}cd /d \"%~dp0\"{eol}echo 🔐 Генерация мнемонической фразы...{eol}{cmd} --passphrase --words 5 --capitalize --add-number --copy{eol}echo ✅ Фраза скопирована в буфер обмена!{eol}pause >nul")
+              write_file("03_Проверить_стойкость_пароля.bat",
+                  f"@echo off{eol}chcp 65001 >nul{eol}cd /d \"%~dp0\"{eol}set /p PASS=Введите пароль для проверки: {eol}{cmd} --check \"%PASS%\"{eol}echo.{eol}pause")
+              write_file("04_Хешировать_пароль_Argon2.bat",
+                  f"@echo off{eol}chcp 65001 >nul{eol}cd /d \"%~dp0\"{eol}set /p PASS=Введите пароль для хеширования: {eol}{cmd} --hash \"%PASS%\" --hash-algo argon2{eol}echo.{eol}pause")
+              write_file("05_Обновить_словари_слов.bat",
+                  f"@echo off{eol}chcp 65001 >nul{eol}cd /d \"%~dp0\"{eol}echo 🌐 Обновление словарей...{eol}{cmd} --update-all{eol}echo ✅ Словари обновлены!{eol}pause >nul")
+          else:
+              eol = "\n"
+              write_file("01_Сгенерировать_пароль_и_скопировать.sh",
+                  f"#!/bin/bash{eol}cd \"$(dirname \"$0\")\"{eol}echo \"🔐 Генерация надёжного пароля...\"{eol}./{cmd} --random -l 24 --copy --no-warnings{eol}echo \"✅ Пароль скопирован в буфер обмена!\"{eol}read -p \"Нажмите Enter для выхода...\"")
+              write_file("02_Сгенерировать_фразу_пароль.sh",
+                  f"#!/bin/bash{eol}cd \"$(dirname \"$0\")\"{eol}echo \"🔐 Генерация мнемонической фразы...\"{eol}./{cmd} --passphrase --words 5 --capitalize --add-number --copy{eol}echo \"✅ Фраза скопирована в буфер обмена!\"{eol}read -p \"Нажмите Enter для выхода...\"")
+              write_file("03_Проверить_стойкость_пароля.sh",
+                  f"#!/bin/bash{eol}cd \"$(dirname \"$0\")\"{eol}read -p \"Введите пароль для проверки: \" PASS{eol}./{cmd} --check \"$PASS\"{eol}echo \"\"{eol}read -p \"Нажмите Enter для выхода...\"")
+              write_file("04_Хешировать_пароль_Argon2.sh",
+                  f"#!/bin/bash{eol}cd \"$(dirname \"$0\")\"{eol}read -p \"Введите пароль для хеширования: \" PASS{eol}./{cmd} --hash \"$PASS\" --hash-algo argon2{eol}echo \"\"{eol}read -p \"Нажмите Enter для выхода...\"")
+              write_file("05_Обновить_словари_слов.sh",
+                  f"#!/bin/bash{eol}cd \"$(dirname \"$0\")\"{eol}echo \"🌐 Обновление словарей...\"{eol}./{cmd} --update-all{eol}echo \"✅ Словари обновлены!\"{eol}read -p \"Нажмите Enter для выхода...\"")
+          PYEOF
+
+      # 📦 Upload all files preserving folder structure
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: build-${{ matrix.os }}
-          path: ${{ matrix.os == 'windows-latest' && 'dist/Windows' || format('dist/{0}', matrix.os == 'ubuntu-latest' && 'linux' || 'macos') }}
+          path: dist/
           retention-days: 1
           if-no-files-found: error
 
+  # 🚀 STAGE 2: Create single GitHub Release after all builds complete
   release:
     needs: build
     runs-on: ubuntu-latest
@@ -216,7 +158,7 @@ jobs:
             ## 🔐 Secure Password Generator ${{ github.ref_name }}
             
             ### 📦 Standalone binaries (no Python required):
-            Files organized by platform:
+            Files are organized by platform for easy access:
             
             #### 🪟 Windows/
             - `passgen-windows-latest.exe` — main executable
@@ -232,8 +174,12 @@ jobs:
             
             ### 🚀 Quick Start:
             #### Windows
-            Open `Windows/` → double-click any `.bat`.
-            Or: `.\passgen-windows-latest.exe --random --length 16`
+            Open `Windows/` folder → double-click any `.bat` file.
+            Or via terminal:
+            ```powershell
+            cd Windows
+            .\passgen-windows-latest.exe --random --length 16
+            ```
             
             #### Linux / macOS
             ```bash
