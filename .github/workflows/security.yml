@@ -2,9 +2,9 @@
 
 on:
   push:
-branches: [main]
+    branches: [main, master]
   pull_request:
-branches: [main]
+    branches: [main, master]
 
 jobs:
   security:
@@ -24,24 +24,32 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
-          pip install "safety>=3.0.0"
+          # Используем Safety v2 для стабильности в CI без ключа
+          pip uninstall -y safety
+          pip install "safety>=2.3.0,<3.0.0"
       
-      - name: Run Ruff
-        run: ruff check src/ tests/ && ruff format --check src/ tests/
+      - name: Run Ruff (Linting + Style)
+        run: |
+          ruff check src/ tests/
+          ruff format --check src/ tests/
       
-      - name: Run Bandit
-        run: bandit -r src/ -f json -o bandit-report.json --severity-level medium
+      - name: Run Bandit (Security Scan)
+        run: |
+          bandit -r src/ -f json -o bandit-report.json --severity-level medium
         continue-on-error: true
       
-      - name: Run Safety Scan
-        env:
-          SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
+      - name: Run Safety Check (Dependencies)
         run: |
-          if [ -n "$SAFETY_API_KEY" ]; then
-            safety scan --key $SAFETY_API_KEY --stage cicd
-          else
-            safety scan --local --continue-on-error
-          fi
+          safety check
       
-      - name: Run Pytest
-        run: pytest tests/ --cov=src --cov-report=xml --cov-fail-under=90
+      - name: Run Pytest (Unit Tests)
+        run: |
+          pytest tests/ --cov=src --cov-report=xml --cov-fail-under=90
+      
+      - name: Upload Bandit Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bandit-report
+          path: bandit-report.json
+          retention-days: 30
