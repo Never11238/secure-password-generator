@@ -49,4 +49,4 @@ See [Threat Model](docs/THREAT_MODEL.md) for detailed security analysis.
 
 ### Security Scan Results
 
-[![Security Check](https://github.com/yourusername/secure-password-generator/actions/workflows/security.yml/badge.svg)](https://github.com/yourusername/secure-password-generator/actions/workflows/security.yml)
+###[![Security Check](https://github.com/yourusername/secure-password-generator/actions/workflows/security.yml/badge.svg)](https://github.com/yourusername/secure-password-generator/actions/workflows/security.yml)

@@ -1,4 +1,4 @@
-name: Security Check
+﻿name: Security Check
 
 on:
   push:
@@ -24,45 +24,24 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
-          # Убеждаемся, что стоит Safety v3
           pip install "safety>=3.0.0"
       
-      - name: Run Ruff (Linting + Style)
-        run: |
-          ruff check src/ tests/
-          ruff format --check src/ tests/
+      - name: Run Ruff
+        run: ruff check src/ tests/ && ruff format --check src/ tests/
       
-      - name: Run Bandit (Security Scan)
-        run: |
-          bandit -r src/ -f json -o bandit-report.json --severity-level medium
+      - name: Run Bandit
+        run: bandit -r src/ -f json -o bandit-report.json --severity-level medium
         continue-on-error: true
       
-      - name: Initialize Safety Project
-        run: |
-          # Инициализация нужна для v3, но может упасть без ключа. Игнорируем ошибки.
-          safety scan --init || echo "Init skipped"
-      
-      - name: Run Safety Scan (Dependencies)
+      - name: Run Safety Scan
         env:
           SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
         run: |
           if [ -n "$SAFETY_API_KEY" ]; then
-            echo "🔑 Using Safety API Key..."
             safety scan --key $SAFETY_API_KEY --stage cicd
           else
-            echo "⚠️ No API Key found. Running local scan (limited features)..."
-            # Локальный скан без ключа может быть ограничен, но проверит базы
             safety scan --local --continue-on-error
           fi
-
-      - name: Run Pytest (Unit Tests)
-        run: |
-          pytest tests/ --cov=src --cov-report=xml --cov-fail-under=90
       
-      - name: Upload Bandit Report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: bandit-report
-          path: bandit-report.json
-          retention-days: 30
+      - name: Run Pytest
+        run: pytest tests/ --cov=src --cov-report=xml --cov-fail-under=90
