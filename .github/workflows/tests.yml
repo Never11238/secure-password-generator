@@ -1,0 +1,55 @@
+name: Cross-Platform Tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      fail-fast: false  # Продолжать тестировать другие ОС, даже если одна упала
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+        exclude:
+          # Python 3.13 может быть нестабилен на некоторых раннерах — исключаем для надёжности
+          - os: macos-latest
+            python-version: "3.13"
+          - os: windows-latest
+            python-version: "3.13"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run Ruff (Linting + Style)
+        run: |
+          ruff check src/ tests/
+          ruff format --check src/ tests/
+
+      - name: Run Pytest (Unit Tests)
+        run: |
+          pytest tests/ --cov=src --cov-report=xml --cov-fail-under=20
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: ${{ matrix.os }}-py${{ matrix.python-version }}
+          fail_ci_if_error: false  # Не ломать CI, если Codecov недоступен
