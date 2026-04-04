@@ -35,7 +35,7 @@ jobs:
       - name: Run Bandit (Security Scan)
         run: |
           bandit -r src/ -f json -o bandit-report.json --severity-level medium
-        continue-on-error: true
+        continue-on-error: true  
       
       - name: Run Safety Scan (Dependencies)
         run: |
