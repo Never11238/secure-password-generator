@@ -9,6 +9,7 @@ on:
       - 'v*'
 
 jobs:
+  # 🔨 ЭТАП 1: Сборка бинарников на всех ОС
   build:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
@@ -63,175 +64,191 @@ jobs:
           else
             ls -la dist/
           fi
-          
-          echo "🧪 Testing binary --help:"
           if [ -f "dist/passgen-${{ matrix.os }}" ]; then
             ./dist/passgen-${{ matrix.os }} --help
           elif [ -f "dist/passgen-${{ matrix.os }}.exe" ]; then
             ./dist/passgen-${{ matrix.os }}.exe --help
           else
-            echo "⚠️ Binary not found in dist/"
+            echo "⚠️ Binary not found"
             exit 1
           fi
 
-      # 🪟 WINDOWS: Генерация всех .bat скриптов
+      # 🪟 WINDOWS: Helper scripts with Russian names
       - name: Create Windows helper scripts
         if: matrix.os == 'windows-latest'
         run: |
           cd dist/
           EXE="passgen-${{ matrix.os }}.exe"
 
-          cat > gen_random.bat << EOF
+          cat > "01_Сгенерировать_пароль_и_скопировать.bat" << 'EOFBAT'
           @echo off
           chcp 65001 >nul
-          cd /d "%%~dp0"
-          echo 🔐 Generating secure random password...
+          cd /d "%~dp0"
+          echo 🔐 Генерация надёжного пароля...
           %EXE% --random -l 24 --copy --no-warnings
-          echo ✅ Copied to clipboard!
+          echo ✅ Пароль скопирован в буфер обмена!
           pause >nul
-          EOF
+          EOFBAT
 
-          cat > gen_passphrase.bat << EOF
+          cat > "02_Сгенерировать_фразу_пароль.bat" << 'EOFBAT'
           @echo off
           chcp 65001 >nul
-          cd /d "%%~dp0"
-          echo 🔐 Generating secure passphrase...
+          cd /d "%~dp0"
+          echo 🔐 Генерация мнемонической фразы...
           %EXE% --passphrase --words 5 --capitalize --add-number --copy
-          echo ✅ Passphrase copied to clipboard!
+          echo ✅ Фраза скопирована в буфер обмена!
           pause >nul
-          EOF
+          EOFBAT
 
-          cat > check_password.bat << EOF
+          cat > "03_Проверить_стойкость_пароля.bat" << 'EOFBAT'
           @echo off
           chcp 65001 >nul
-          cd /d "%%~dp0"
-          set /p "PASS=Enter password to check: "
-          %EXE% --check "%%PASS%%"
+          cd /d "%~dp0"
+          set /p "PASS=Введите пароль для проверки: "
+          %EXE% --check "%PASS%"
           echo.
           pause
-          EOF
+          EOFBAT
 
-          cat > hash_password.bat << EOF
+          cat > "04_Хешировать_пароль_Argon2.bat" << 'EOFBAT'
           @echo off
           chcp 65001 >nul
-          cd /d "%%~dp0"
-          set /p "PASS=Enter password to hash: "
-          %EXE% --hash "%%PASS%%" --hash-algo argon2
+          cd /d "%~dp0"
+          set /p "PASS=Введите пароль для хеширования: "
+          %EXE% --hash "%PASS%" --hash-algo argon2
           echo.
           pause
-          EOF
+          EOFBAT
 
-          cat > update_wordlists.bat << EOF
+          cat > "05_Обновить_словари_слов.bat" << 'EOFBAT'
           @echo off
           chcp 65001 >nul
-          cd /d "%%~dp0"
-          echo 🌐 Updating wordlists...
+          cd /d "%~dp0"
+          echo 🌐 Обновление словарей...
           %EXE% --update-all
-          echo ✅ Wordlists updated!
+          echo ✅ Словари обновлены!
           pause >nul
-          EOF
+          EOFBAT
 
-      # 🐧/🍎 UNIX: Генерация всех .sh скриптов
+      # 🐧/🍎 UNIX: Helper scripts with Russian names
       - name: Create Unix helper scripts
         if: matrix.os != 'windows-latest'
         run: |
           cd dist/
           EXE="./passgen-${{ matrix.os }}"
 
-          cat > gen_random.sh << EOF
+          cat > "01_Сгенерировать_пароль_и_скопировать.sh" << 'EOF'
           #!/bin/bash
-          cd "\$(dirname "\$0")"
-          echo "🔐 Generating secure random password..."
+          cd "$(dirname "$0")"
+          echo "🔐 Генерация надёжного пароля..."
           $EXE --random -l 24 --copy --no-warnings
-          echo "✅ Copied to clipboard!"
-          read -p "Press Enter to exit..."
+          echo "✅ Пароль скопирован в буфер обмена!"
+          read -p "Нажмите Enter для выхода..."
           EOF
 
-          cat > gen_passphrase.sh << EOF
+          cat > "02_Сгенерировать_фразу_пароль.sh" << 'EOF'
           #!/bin/bash
-          cd "\$(dirname "\$0")"
-          echo "🔐 Generating secure passphrase..."
+          cd "$(dirname "$0")"
+          echo "🔐 Генерация мнемонической фразы..."
           $EXE --passphrase --words 5 --capitalize --add-number --copy
-          echo "✅ Passphrase copied to clipboard!"
-          read -p "Press Enter to exit..."
+          echo "✅ Фраза скопирована в буфер обмена!"
+          read -p "Нажмите Enter для выхода..."
           EOF
 
-          cat > check_password.sh << EOF
+          cat > "03_Проверить_стойкость_пароля.sh" << 'EOF'
           #!/bin/bash
-          cd "\$(dirname "\$0")"
-          read -p "Enter password to check: " PASS
-          $EXE --check "\$PASS"
+          cd "$(dirname "$0")"
+          read -p "Введите пароль для проверки: " PASS
+          $EXE --check "$PASS"
           echo ""
-          read -p "Press Enter to exit..."
+          read -p "Нажмите Enter для выхода..."
           EOF
 
-          cat > hash_password.sh << EOF
+          cat > "04_Хешировать_пароль_Argon2.sh" << 'EOF'
           #!/bin/bash
-          cd "\$(dirname "\$0")"
-          read -p "Enter password to hash: " PASS
-          $EXE --hash "\$PASS" --hash-algo argon2
+          cd "$(dirname "$0")"
+          read -p "Введите пароль для хеширования: " PASS
+          $EXE --hash "$PASS" --hash-algo argon2
           echo ""
-          read -p "Press Enter to exit..."
+          read -p "Нажмите Enter для выхода..."
           EOF
 
-          cat > update_wordlists.sh << EOF
+          cat > "05_Обновить_словари_слов.sh" << 'EOF'
           #!/bin/bash
-          cd "\$(dirname "\$0")"
-          echo "🌐 Updating wordlists..."
+          cd "$(dirname "$0")"
+          echo "🌐 Обновление словарей..."
           $EXE --update-all
-          echo "✅ Wordlists updated!"
-          read -p "Press Enter to exit..."
+          echo "✅ Словари обновлены!"
+          read -p "Нажмите Enter для выхода..."
           EOF
 
           chmod +x *.sh
 
-      - name: Upload artifact
+      # 📦 Загрузка артефактов (не релиз!)
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: passgen-${{ matrix.os }}
+          name: build-${{ matrix.os }}
           path: dist/
-          retention-days: 30
+          retention-days: 1
+          if-no-files-found: error
+
+  # 🚀 ЭТАП 2: Создание релиза (запускается ПОСЛЕ всех сборок)
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+          pattern: build-*
 
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
+          files: dist/**/*
           body: |
             ## 🔐 Secure Password Generator ${{ github.ref_name }}
             
             ### 📦 Standalone binaries (no Python required):
-            Each platform includes ready-to-run helper scripts:
-            - 🪟 **Windows**: `passgen-windows-latest.exe` + `gen_*.bat` files
-            - 🐧 **Linux**: `passgen-ubuntu-latest` + `gen_*.sh` files
-            - 🍎 **macOS**: `passgen-macos-latest` + `gen_*.sh` files
+            Каждый архив содержит готовые скрипты с русскими названиями:
             
-            ### 🚀 Quick Start:
+            #### 🪟 Windows
+            - `passgen-windows-latest.exe` — основной исполняемый файл
+            - `01_Сгенерировать_пароль_и_скопировать.bat` → мгновенная генерация + копирование
+            - `02_Сгенерировать_фразу_пароль.bat` → мнемоническая фраза
+            - `03_Проверить_стойкость_пароля.bat` → оценка безопасности пароля
+            - `04_Хешировать_пароль_Argon2.bat` → безопасное хеширование
+            - `05_Обновить_словари_слов.bat` → загрузка свежих wordlists
+            
+            #### 🐧 Linux / 🍎 macOS
+            - `passgen-ubuntu-latest` / `passgen-macos-latest` — бинарник
+            - `01_Сгенерировать_пароль_и_скопировать.sh` и др. — аналогичные скрипты
+            
+            ### 🚀 Быстрый старт:
             #### Windows
-            Double-click any `.bat` file to run instantly:
-            - `gen_random.bat` → Generate & copy strong password
-            - `gen_passphrase.bat` → Generate mnemonic passphrase
-            - `check_password.bat` → Test strength of existing password
-            - `hash_password.bat` → Hash password with Argon2
-            - `update_wordlists.bat` → Update EFF wordlists
-            
-            Or via terminal:
+            Просто дважды кликните по любому `.bat` файлу.
+            Или через терминал:
             ```powershell
             .\passgen-windows-latest.exe --random --length 16
             ```
             
             #### Linux / macOS
-            Make scripts executable once, then double-click or run:
             ```bash
-            chmod +x gen_*.sh
-            ./gen_random.sh
+            chmod +x 01_Сгенерировать_пароль_и_скопировать.sh
+            ./01_Сгенерировать_пароль_и_скопировать.sh
             ```
             
-            ### 🔧 All options:
+            ### 🔧 Все опции:
             ```bash
             passgen-<os> --help
             ```
           draft: false
           prerelease: false
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
