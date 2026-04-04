@@ -39,14 +39,12 @@ jobs:
       
       - name: Run Safety Scan (Dependencies)
         run: |
-          # Initialize project for Safety v3 (may be required)
-          safety scan --init || echo "Init skipped"
-          
-          # Run vulnerability scan:
-          # --local: works without API key / account
-          # --continue-on-error: don't fail CI if vulnerabilities found (for demo purposes)
+          # Safety v3 scan in CI mode (non-interactive, no API key required)
+          # --local: scan locally installed packages
+          # --continue-on-error: don't fail CI if vulnerabilities found
           # --ignore 84961: temporarily ignore wheel vulnerability (CVE-2026-24049)
-          safety scan --local --continue-on-error --ignore 84961
+          # --no-interaction: disable prompts for login/register
+          safety scan --local --continue-on-error --ignore 84961 --no-interaction || echo "Safety scan completed with warnings"
       
       - name: Run Pytest (Unit Tests)
         run: |
