@@ -1,0 +1,5 @@
+# .gitattributes
+*.exe binary
+*.whl binary
+*.zip binary
+*.tar.gz binary
