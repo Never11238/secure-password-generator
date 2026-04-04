@@ -1,4 +1,0 @@
-pyperclip>=1.8.0; extra == "enhanced"
-zxcvbn>=4.4.28; extra == "enhanced"
-pytest>=7.0.0; extra == "dev"
-pytest-cov>=4.0.0; extra == "dev"

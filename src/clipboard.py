@@ -42,13 +42,9 @@ class Clipboard:
 
         try:
             if self.tool == "pbcopy":
-                subprocess.run(
-                    ["pbcopy"], input=text.encode("utf-8"), check=True  
-                )
+                subprocess.run(["pbcopy"], input=text.encode("utf-8"), check=True)
             elif self.tool == "clip":
-                subprocess.run(
-                    ["clip"], input=text.encode("utf-8"), check=True  
-                )
+                subprocess.run(["clip"], input=text.encode("utf-8"), check=True)
             elif self.tool in ("wl-copy", "xclip"):
                 cmd = [self.tool]
                 if self.tool == "xclip":
