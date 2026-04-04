@@ -1,23 +1,23 @@
 name: Build Release Binaries
 
-
 permissions:
   contents: write
 
 on:
   push:
     tags:
-      - 'v*'  
+      - 'v*'
 
 jobs:
   build:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
-    
+
+    # Use Bash for all run steps (works consistently across Windows, macOS, Linux)
     defaults:
       run:
         shell: bash
-    
+
     strategy:
       fail-fast: false
       matrix:
@@ -45,7 +45,6 @@ jobs:
           pytest tests/ -v
 
       - name: Build standalone binary with PyInstaller
-        shell: bash  
         run: |
           pyinstaller --onefile \
             --name passgen-${{ matrix.os }} \
@@ -60,7 +59,6 @@ jobs:
       - name: Verify binary was created
         run: |
           echo "📁 Contents of dist/:"
-          # Кроссплатформенная проверка (работает и на Windows, и на Linux/macOS)
           if [ "$RUNNER_OS" == "Windows" ]; then
             dir dist
           else
@@ -68,43 +66,70 @@ jobs:
           fi
           
           echo "🧪 Testing binary --help:"
-          # Проверяем наличие файла и запускаем
           if [ -f "dist/passgen-${{ matrix.os }}" ]; then
             ./dist/passgen-${{ matrix.os }} --help
           elif [ -f "dist/passgen-${{ matrix.os }}.exe" ]; then
             ./dist/passgen-${{ matrix.os }}.exe --help
           else
-            echo "⚠️ Binary not found in dist/, checking build logs above"
+            echo "⚠️ Binary not found in dist/"
             exit 1
           fi
+
+      # Generate helper scripts for one-click execution
+      - name: Create Windows batch file
+        if: matrix.os == 'windows-latest'
+        run: |
+          echo @echo off > gen_pass.bat
+          echo chcp 65001 ^>nul >> gen_pass.bat
+          echo cd /d "%%~dp0" >> gen_pass.bat
+          echo passgen-${{ matrix.os }}.exe --random -l 24 --copy --no-warnings >> gen_pass.bat
+          echo pause ^>nul >> gen_pass.bat
+          cp gen_pass.bat dist/
+
+      - name: Create Unix shell script
+        if: matrix.os != 'windows-latest'
+        run: |
+          echo '#!/bin/bash' > gen_pass.sh
+          echo 'cd "$(dirname "$0")"' >> gen_pass.sh
+          echo './passgen-${{ matrix.os }} --random -l 24 --copy --no-warnings' >> gen_pass.sh
+          echo 'read -p "Press Enter to exit..."' >> gen_pass.sh
+          chmod +x gen_pass.sh
+          cp gen_pass.sh dist/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: passgen-${{ matrix.os }}
-          path: dist/passgen-*
+          path: dist/  # Uploads binaries + helper scripts
           retention-days: 30
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/passgen-*
+          files: dist/*  # Attaches all files from dist/ to the release
           body: |
             ## 🔐 Secure Password Generator ${{ github.ref_name }}
             
             ### 📦 Standalone binaries (no Python required):
-            - 🪟 Windows: `passgen-windows-latest.exe`
-            - 🐧 Linux: `passgen-ubuntu-latest`
-            - 🍎 macOS: `passgen-macos-latest`
+            - 🪟 Windows: `passgen-windows-latest.exe` + `gen_pass.bat`
+            - 🐧 Linux: `passgen-ubuntu-latest` + `gen_pass.sh`
+            - 🍎 macOS: `passgen-macos-latest` + `gen_pass.sh`
             
             ### 🚀 Usage:
-            ```bash
-            # Windows (PowerShell / CMD)
+            #### Windows
+            Double-click `gen_pass.bat` to instantly generate & copy a password.
+            Or via terminal:
+            ```powershell
             .\passgen-windows-latest.exe --random --length 16
+            ```
             
-            # Linux / macOS
-            chmod +x passgen-ubuntu-latest
+            #### Linux / macOS
+            Make executable and run:
+            ```bash
+            chmod +x gen_pass.sh
+            ./gen_pass.sh
+            # Or directly:
             ./passgen-ubuntu-latest --random --length 16
             ```
             
