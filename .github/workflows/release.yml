@@ -41,6 +41,7 @@ jobs:
           pytest tests/ -v
 
       - name: Build standalone binary with PyInstaller
+        shell: bash  
         run: |
           pyinstaller --onefile \
             --name passgen-${{ matrix.os }} \
