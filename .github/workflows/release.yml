@@ -72,7 +72,7 @@ jobs:
             exit 1
           fi
 
-      # 🐍 Generate helper scripts & organize into standard platform folders
+      # 🐍 Generate helper scripts with UNIQUE names (platform prefix)
       - name: Organize dist and generate helper scripts
         run: |
           python << 'PYEOF'
@@ -82,18 +82,21 @@ jobs:
           is_win = matrix_os == "windows-latest"
           exe_name = f"passgen-{matrix_os}{'.exe' if is_win else ''}"
           
-          # Use standard, consistent folder names
+          # Standard folder names for organization (not used in release filenames)
           if matrix_os == "ubuntu-latest":
               folder = "Linux"
+              prefix = "Linux"
           elif matrix_os == "macos-latest":
               folder = "macOS"
+              prefix = "macOS"
           else:
               folder = "Windows"
+              prefix = "Windows"
               
           target = os.path.join("dist", folder)
           os.makedirs(target, exist_ok=True)
           
-          # Move binary into platform folder
+          # Move binary into platform folder (keep original name for local use)
           shutil.move(os.path.join("dist", exe_name), target)
 
           def write_file(name, content):
@@ -106,27 +109,29 @@ jobs:
           cmd = exe_name
           if is_win:
               eol = "\r\n"
-              write_file("01_Сгенерировать_пароль_и_скопировать.bat", 
+              # Windows scripts with Windows_ prefix
+              write_file(f"{prefix}_01_Сгенерировать_пароль_и_скопировать.bat", 
                   f"@echo off{eol}chcp 65001 >nul{eol}cd /d \"%~dp0\"{eol}echo 🔐 Генерация надёжного пароля...{eol}{cmd} --random -l 24 --copy --no-warnings{eol}echo ✅ Пароль скопирован в буфер обмена!{eol}pause >nul")
-              write_file("02_Сгенерировать_фразу_пароль.bat",
+              write_file(f"{prefix}_02_Сгенерировать_фразу_пароль.bat",
                   f"@echo off{eol}chcp 65001 >nul{eol}cd /d \"%~dp0\"{eol}echo 🔐 Генерация мнемонической фразы...{eol}{cmd} --passphrase --words 5 --capitalize --add-number --copy{eol}echo ✅ Фраза скопирована в буфер обмена!{eol}pause >nul")
-              write_file("03_Проверить_стойкость_пароля.bat",
+              write_file(f"{prefix}_03_Проверить_стойкость_пароля.bat",
                   f"@echo off{eol}chcp 65001 >nul{eol}cd /d \"%~dp0\"{eol}set /p PASS=Введите пароль для проверки: {eol}{cmd} --check \"%PASS%\"{eol}echo.{eol}pause")
-              write_file("04_Хешировать_пароль_Argon2.bat",
+              write_file(f"{prefix}_04_Хешировать_пароль_Argon2.bat",
                   f"@echo off{eol}chcp 65001 >nul{eol}cd /d \"%~dp0\"{eol}set /p PASS=Введите пароль для хеширования: {eol}{cmd} --hash \"%PASS%\" --hash-algo argon2{eol}echo.{eol}pause")
-              write_file("05_Обновить_словари_слов.bat",
+              write_file(f"{prefix}_05_Обновить_словари_слов.bat",
                   f"@echo off{eol}chcp 65001 >nul{eol}cd /d \"%~dp0\"{eol}echo 🌐 Обновление словарей...{eol}{cmd} --update-all{eol}echo ✅ Словари обновлены!{eol}pause >nul")
           else:
               eol = "\n"
-              write_file("01_Сгенерировать_пароль_и_скопировать.sh",
+              # Unix scripts with Linux_ or macOS_ prefix
+              write_file(f"{prefix}_01_Сгенерировать_пароль_и_скопировать.sh",
                   f"#!/bin/bash{eol}cd \"$(dirname \"$0\")\"{eol}echo \"🔐 Генерация надёжного пароля...\"{eol}./{cmd} --random -l 24 --copy --no-warnings{eol}echo \"✅ Пароль скопирован в буфер обмена!\"{eol}read -p \"Нажмите Enter для выхода...\"")
-              write_file("02_Сгенерировать_фразу_пароль.sh",
+              write_file(f"{prefix}_02_Сгенерировать_фразу_пароль.sh",
                   f"#!/bin/bash{eol}cd \"$(dirname \"$0\")\"{eol}echo \"🔐 Генерация мнемонической фразы...\"{eol}./{cmd} --passphrase --words 5 --capitalize --add-number --copy{eol}echo \"✅ Фраза скопирована в буфер обмена!\"{eol}read -p \"Нажмите Enter для выхода...\"")
-              write_file("03_Проверить_стойкость_пароля.sh",
+              write_file(f"{prefix}_03_Проверить_стойкость_пароля.sh",
                   f"#!/bin/bash{eol}cd \"$(dirname \"$0\")\"{eol}read -p \"Введите пароль для проверки: \" PASS{eol}./{cmd} --check \"$PASS\"{eol}echo \"\"{eol}read -p \"Нажмите Enter для выхода...\"")
-              write_file("04_Хешировать_пароль_Argon2.sh",
+              write_file(f"{prefix}_04_Хешировать_пароль_Argon2.sh",
                   f"#!/bin/bash{eol}cd \"$(dirname \"$0\")\"{eol}read -p \"Введите пароль для хеширования: \" PASS{eol}./{cmd} --hash \"$PASS\" --hash-algo argon2{eol}echo \"\"{eol}read -p \"Нажмите Enter для выхода...\"")
-              write_file("05_Обновить_словари_слов.sh",
+              write_file(f"{prefix}_05_Обновить_словари_слов.sh",
                   f"#!/bin/bash{eol}cd \"$(dirname \"$0\")\"{eol}echo \"🌐 Обновление словарей...\"{eol}./{cmd} --update-all{eol}echo \"✅ Словари обновлены!\"{eol}read -p \"Нажмите Enter для выхода...\"")
           PYEOF
 
@@ -162,37 +167,49 @@ jobs:
             ## 🔐 Secure Password Generator ${{ github.ref_name }}
             
             ### 📦 Standalone binaries (no Python required):
-            Files are organized by platform for easy access:
+            All files are in a flat structure with platform prefixes for clarity:
             
-            #### 🪟 Windows/
+            #### 🪟 Windows
             - `passgen-windows-latest.exe` — main executable
-            - `01_Сгенерировать_пароль_и_скопировать.bat` → generate & copy password
-            - `02_Сгенерировать_фразу_пароль.bat` → generate passphrase
-            - `03_Проверить_стойкость_пароля.bat` → check strength
-            - `04_Хешировать_пароль_Argon2.bat` → hash with Argon2
-            - `05_Обновить_словари_слов.bat` → update wordlists
+            - `Windows_01_Сгенерировать_пароль_и_скопировать.bat` → generate & copy password
+            - `Windows_02_Сгенерировать_фразу_пароль.bat` → generate passphrase
+            - `Windows_03_Проверить_стойкость_пароля.bat` → check strength
+            - `Windows_04_Хешировать_пароль_Argon2.bat` → hash with Argon2
+            - `Windows_05_Обновить_словари_слов.bat` → update wordlists
             
-            #### 🐧 Linux/ & 🍎 macOS/
-            - `passgen-ubuntu-latest` / `passgen-macos-latest` — main binary
-            - `01_Сгенерировать_пароль_и_скопировать.sh` and others — same functionality
+            #### 🐧 Linux
+            - `passgen-ubuntu-latest` — main binary
+            - `Linux_01_Сгенерировать_пароль_и_скопировать.sh` → generate & copy password
+            - `Linux_02_Сгенерировать_фразу_пароль.sh` → generate passphrase
+            - `Linux_03_Проверить_стойкость_пароля.sh` → check strength
+            - `Linux_04_Хешировать_пароль_Argon2.sh` → hash with Argon2
+            - `Linux_05_Обновить_словари_слов.sh` → update wordlists
+            
+            #### 🍎 macOS
+            - `passgen-macos-latest` — main binary
+            - `macOS_01_Сгенерировать_пароль_и_скопировать.sh` → generate & copy password
+            - `macOS_02_Сгенерировать_фразу_пароль.sh` → generate passphrase
+            - `macOS_03_Проверить_стойкость_пароля.sh` → check strength
+            - `macOS_04_Хешировать_пароль_Argon2.sh` → hash with Argon2
+            - `macOS_05_Обновить_словари_слов.sh` → update wordlists
             
             ### 🚀 Quick Start:
             #### Windows
-            Open `Windows/` folder → double-click any `.bat` file.
+            Download `passgen-windows-latest.exe` and any `Windows_*.bat` file.
+            Double-click a `.bat` file to run instantly.
             Or via terminal:
             ```powershell
-            cd Windows
             .\passgen-windows-latest.exe --random --length 16
             ```
             
             #### Linux / macOS
+            Download the binary and any `Linux_*.sh` or `macOS_*.sh` file.
+            Make executable and run:
             ```bash
-            cd Linux/  # or macOS/
-            chmod +x *.sh
-            ./01_Сгенерировать_пароль_и_скопировать.sh
+            chmod +x Linux_01_Сгенерировать_пароль_и_скопировать.sh
+            ./Linux_01_Сгенерировать_пароль_и_скопировать.sh
             ```
           draft: false
           prerelease: false
-          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
