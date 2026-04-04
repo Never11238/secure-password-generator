@@ -23,9 +23,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # Устанавливаем проект и dev-зависимости
           pip install -e ".[dev]"
-          # Убеждаемся, что safety v3 установлен
+          # Убеждаемся, что стоит Safety v3
           pip install "safety>=3.0.0"
       
       - name: Run Ruff (Linting + Style)
@@ -35,25 +34,24 @@ jobs:
       
       - name: Run Bandit (Security Scan)
         run: |
-          bandit -r src/ -f json -o bandit-report.json --severity-level medium --confidence-level medium
-        continue-on-error: true # Не блокируем CI, если найдены предупреждения, но логируем их
+          bandit -r src/ -f json -o bandit-report.json --severity-level medium
+        continue-on-error: true
       
       - name: Initialize Safety Project
         run: |
-          # Инициализируем проект для Safety v3
-          safety scan --init || echo "Initialization skipped or failed"
+          # Инициализация нужна для v3, но может упасть без ключа. Игнорируем ошибки.
+          safety scan --init || echo "Init skipped"
       
       - name: Run Safety Scan (Dependencies)
         env:
-          # Если ключ есть в секретах, используем его. Если нет - сканируем локально.
           SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
         run: |
           if [ -n "$SAFETY_API_KEY" ]; then
-            echo "Running Safety with API Key..."
+            echo "🔑 Using Safety API Key..."
             safety scan --key $SAFETY_API_KEY --stage cicd
           else
-            echo "No API Key found. Running local scan..."
-            # Локальное сканирование может требовать интерактивности, поэтому используем флаги
+            echo "⚠️ No API Key found. Running local scan (limited features)..."
+            # Локальный скан без ключа может быть ограничен, но проверит базы
             safety scan --local --continue-on-error
           fi
 
