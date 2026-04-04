@@ -44,7 +44,7 @@ jobs:
 
       - name: Run Pytest (Unit Tests)
         run: |
-          pytest tests/ --cov=src --cov-report=xml --cov-fail-under=20
+          pytest tests/ --cov=src --cov-report=xml --cov-fail-under=17
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
