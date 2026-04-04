@@ -29,7 +29,8 @@ dev = [
     "pytest-cov>=4.0.0",
     "ruff>=0.1.0",
     "bandit>=1.7.0",
-    "safety>=2.3.0",
+    "safety>=2.3.0,<3.0.0",
+    "wheel>=0.46.2",
 ]
 argon2 = ["argon2-cffi>=23.1.0"]
 enhanced = ["pyperclip>=1.8.0", "zxcvbn>=4.4.28"]
