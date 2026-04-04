@@ -1,7 +1,0 @@
-name: Test
-on: [push]
-jobs:
-  check:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "It works!"
