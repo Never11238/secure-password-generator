@@ -9,7 +9,6 @@ on:
       - 'v*'
 
 jobs:
-  # 🔨 STAGE 1: Build binaries on all OS platforms
   build:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
@@ -73,147 +72,126 @@ jobs:
             exit 1
           fi
 
-      # 🪟 WINDOWS: Generate helper scripts with Russian names (using PowerShell for encoding safety)
+      # 🪟 WINDOWS: Generate helper scripts with Russian names (PowerShell, no heredoc)
       - name: Create Windows helper scripts
         if: matrix.os == 'windows-latest'
         shell: powershell
         run: |
           $dist = "dist"
           $exe = "passgen-${{ matrix.os }}.exe"
+          $batDir = "$dist/Windows"
           
-          # Helper function to create UTF-8 encoded .bat files WITHOUT BOM (critical for cmd.exe)
-          function New-BatFile {
-              param([string]$Name, [string]$Content)
-              $path = Join-Path $dist $Name
-              [System.IO.File]::WriteAllText($path, $Content, (New-Object System.Text.UTF8Encoding $false))
+          New-Item -ItemType Directory -Force -Path $batDir | Out-Null
+          Move-Item "$dist/$exe" "$batDir/" -Force
+          
+          function Write-Bat {
+              param([string]$Path, [string[]]$Lines)
+              $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+              [System.IO.File]::WriteAllLines($Path, $Lines, $utf8NoBom)
           }
           
-          New-BatFile "01_Сгенерировать_пароль_и_скопировать.bat" @"
-          @echo off
-          chcp 65001 >nul
-          cd /d "%~dp0"
-          echo 🔐 Генерация надёжного пароля...
-          $exe --random -l 24 --copy --no-warnings
-          echo ✅ Пароль скопирован в буфер обмена!
-          pause >nul
-          "@
+          Write-Bat "$batDir/01_Сгенерировать_пароль_и_скопировать.bat" @(
+              '@echo off',
+              'chcp 65001 >nul',
+              'cd /d "%~dp0"',
+              'echo Generating secure password...',
+              "$exe --random -l 24 --copy --no-warnings",
+              'echo Password copied to clipboard!',
+              'pause >nul'
+          )
           
-          New-BatFile "02_Сгенерировать_фразу_пароль.bat" @"
-          @echo off
-          chcp 65001 >nul
-          cd /d "%~dp0"
-          echo 🔐 Генерация мнемонической фразы...
-          $exe --passphrase --words 5 --capitalize --add-number --copy
-          echo ✅ Фраза скопирована в буфер обмена!
-          pause >nul
-          "@
+          Write-Bat "$batDir/02_Сгенерировать_фразу_пароль.bat" @(
+              '@echo off',
+              'chcp 65001 >nul',
+              'cd /d "%~dp0"',
+              'echo Generating mnemonic passphrase...',
+              "$exe --passphrase --words 5 --capitalize --add-number --copy",
+              'echo Passphrase copied to clipboard!',
+              'pause >nul'
+          )
           
-          New-BatFile "03_Проверить_стойкость_пароля.bat" @"
-          @echo off
-          chcp 65001 >nul
-          cd /d "%~dp0"
-          set /p "PASS=Введите пароль для проверки: "
-          $exe --check "%PASS%"
-          echo.
-          pause
-          "@
+          Write-Bat "$batDir/03_Проверить_стойкость_пароля.bat" @(
+              '@echo off',
+              'chcp 65001 >nul',
+              'cd /d "%~dp0"',
+              'set /p PASS=Enter password to check: ',
+              "$exe --check `%PASS%`",
+              'echo.',
+              'pause'
+          )
           
-          New-BatFile "04_Хешировать_пароль_Argon2.bat" @"
-          @echo off
-          chcp 65001 >nul
-          cd /d "%~dp0"
-          set /p "PASS=Введите пароль для хеширования: "
-          $exe --hash "%PASS%" --hash-algo argon2
-          echo.
-          pause
-          "@
+          Write-Bat "$batDir/04_Хешировать_пароль_Argon2.bat" @(
+              '@echo off',
+              'chcp 65001 >nul',
+              'cd /d "%~dp0"',
+              'set /p PASS=Enter password to hash: ',
+              "$exe --hash `%PASS%` --hash-algo argon2",
+              'echo.',
+              'pause'
+          )
           
-          New-BatFile "05_Обновить_словари_слов.bat" @"
-          @echo off
-          chcp 65001 >nul
-          cd /d "%~dp0"
-          echo 🌐 Обновление словарей...
-          $exe --update-all
-          echo ✅ Словари обновлены!
-          pause >nul
-          "@
-          
-          # Move all Windows files to a subfolder for organized release
-          New-Item -ItemType Directory -Force -Path "dist/Windows" | Out-Null
-          Move-Item "dist/$exe" "dist/Windows/"
-          Move-Item "dist/*.bat" "dist/Windows/"
+          Write-Bat "$batDir/05_Обновить_словари_слов.bat" @(
+              '@echo off',
+              'chcp 65001 >nul',
+              'cd /d "%~dp0"',
+              'echo Updating wordlists...',
+              "$exe --update-all",
+              'echo Wordlists updated!',
+              'pause >nul'
+          )
 
-      # 🐧/🍎 UNIX: Generate helper scripts with Russian names
+      # 🐧/🍎 UNIX: Generate helper scripts (simple echo, no heredoc)
       - name: Create Unix helper scripts
         if: matrix.os != 'windows-latest'
         run: |
-          cd dist/
-          EXE="./passgen-${{ matrix.os }}"
+          PLATFORM_NAME=$(echo "${{ matrix.os }}" | sed 's/-latest//')
+          PLATFORM_DIR="dist/$PLATFORM_NAME"
           
-          # Determine platform folder name (Linux or macOS)
-          PLATFORM_DIR=$(echo "${{ matrix.os }}" | sed 's/-latest//')
           mkdir -p "$PLATFORM_DIR"
-          
-          cat > "$PLATFORM_DIR/01_Сгенерировать_пароль_и_скопировать.sh" << 'EOF'
-          #!/bin/bash
-          cd "$(dirname "$0")"
-          echo "🔐 Генерация надёжного пароля..."
-          ./passgen-${{ matrix.os }} --random -l 24 --copy --no-warnings
-          echo "✅ Пароль скопирован в буфер обмена!"
-          read -p "Нажмите Enter для выхода..."
-          EOF
-          
-          cat > "$PLATFORM_DIR/02_Сгенерировать_фразу_пароль.sh" << 'EOF'
-          #!/bin/bash
-          cd "$(dirname "$0")"
-          echo "🔐 Генерация мнемонической фразы..."
-          ./passgen-${{ matrix.os }} --passphrase --words 5 --capitalize --add-number --copy
-          echo "✅ Фраза скопирована в буфер обмена!"
-          read -p "Нажмите Enter для выхода..."
-          EOF
-          
-          cat > "$PLATFORM_DIR/03_Проверить_стойкость_пароля.sh" << 'EOF'
-          #!/bin/bash
-          cd "$(dirname "$0")"
-          read -p "Введите пароль для проверки: " PASS
-          ./passgen-${{ matrix.os }} --check "$PASS"
-          echo ""
-          read -p "Нажмите Enter для выхода..."
-          EOF
-          
-          cat > "$PLATFORM_DIR/04_Хешировать_пароль_Argon2.sh" << 'EOF'
-          #!/bin/bash
-          cd "$(dirname "$0")"
-          read -p "Введите пароль для хеширования: " PASS
-          ./passgen-${{ matrix.os }} --hash "$PASS" --hash-algo argon2
-          echo ""
-          read -p "Нажмите Enter для выхода..."
-          EOF
-          
-          cat > "$PLATFORM_DIR/05_Обновить_словари_слов.sh" << 'EOF'
-          #!/bin/bash
-          cd "$(dirname "$0")"
-          echo "🌐 Обновление словарей..."
-          ./passgen-${{ matrix.os }} --update-all
-          echo "✅ Словари обновлены!"
-          read -p "Нажмите Enter для выхода..."
-          EOF
-          
-          chmod +x "$PLATFORM_DIR"/*.sh
-          
-          # Move binary to platform folder
           mv "dist/passgen-${{ matrix.os }}" "$PLATFORM_DIR/"
+          
+          # Helper: create script with proper escaping
+          make_script() {
+              local file="$1"
+              local desc="$2"
+              local cmd="$3"
+              local ok="$4"
+              
+              printf '#!/bin/bash\ncd "$(dirname "$0")"\necho "🔐 %s"\n./passgen-%s %s\necho "✅ %s"\nread -p "Press Enter to exit..."\n' \
+                  "$desc" "${{ matrix.os }}" "$cmd" "$ok" > "$PLATFORM_DIR/$file"
+              chmod +x "$PLATFORM_DIR/$file"
+          }
+          
+          make_script "01_Сгенерировать_пароль_и_скопировать.sh" \
+              "Generating secure password..." \
+              "--random -l 24 --copy --no-warnings" \
+              "Password copied to clipboard!"
+          
+          make_script "02_Сгенерировать_фразу_пароль.sh" \
+              "Generating mnemonic passphrase..." \
+              "--passphrase --words 5 --capitalize --add-number --copy" \
+              "Passphrase copied to clipboard!"
+          
+          # Interactive scripts (check/hash) - written directly with careful quoting
+          printf '%s\n' '#!/bin/bash' 'cd "$(dirname "$0")"' 'read -p "Enter password to check: " PASS' "./passgen-${{ matrix.os }} --check \"\$PASS\"" 'echo ""' 'read -p "Press Enter to exit..."' > "$PLATFORM_DIR/03_Проверить_стойкость_пароля.sh"
+          chmod +x "$PLATFORM_DIR/03_Проверить_стойкость_пароля.sh"
+          
+          printf '%s\n' '#!/bin/bash' 'cd "$(dirname "$0")"' 'read -p "Enter password to hash: " PASS' "./passgen-${{ matrix.os }} --hash \"\$PASS\" --hash-algo argon2" 'echo ""' 'read -p "Press Enter to exit..."' > "$PLATFORM_DIR/04_Хешировать_пароль_Argon2.sh"
+          chmod +x "$PLATFORM_DIR/04_Хешировать_пароль_Argon2.sh"
+          
+          make_script "05_Обновить_словари_слов.sh" \
+              "Updating wordlists..." \
+              "--update-all" \
+              "Wordlists updated!"
 
-      # 📦 Upload build artifacts (organized by OS folders)
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: build-${{ matrix.os }}
-          path: dist/Windows/  # For Windows; for Unix it will be dist/Linux/ or dist/macOS/
+          path: ${{ matrix.os == 'windows-latest' && 'dist/Windows' || format('dist/{0}', matrix.os == 'ubuntu-latest' && 'linux' || 'macos') }}
           retention-days: 1
           if-no-files-found: error
 
-  # 🚀 STAGE 2: Create single GitHub Release after all builds complete
   release:
     needs: build
     runs-on: ubuntu-latest
@@ -232,21 +210,21 @@ jobs:
         with:
           files: |
             dist/Windows/**/*
-            dist/Linux/**/*
-            dist/macOS/**/*
+            dist/linux/**/*
+            dist/macos/**/*
           body: |
             ## 🔐 Secure Password Generator ${{ github.ref_name }}
             
             ### 📦 Standalone binaries (no Python required):
-            Files are organized by platform for easy access:
+            Files organized by platform:
             
             #### 🪟 Windows/
             - `passgen-windows-latest.exe` — main executable
-            - `01_Сгенерировать_пароль_и_скопировать.bat` → generate & copy strong password
-            - `02_Сгенерировать_фразу_пароль.bat` → generate mnemonic passphrase
-            - `03_Проверить_стойкость_пароля.bat` → check password strength
-            - `04_Хешировать_пароль_Argon2.bat` → hash password with Argon2
-            - `05_Обновить_словари_слов.bat` → update EFF wordlists
+            - `01_Сгенерировать_пароль_и_скопировать.bat` → generate & copy password
+            - `02_Сгенерировать_фразу_пароль.bat` → generate passphrase
+            - `03_Проверить_стойкость_пароля.bat` → check strength
+            - `04_Хешировать_пароль_Argon2.bat` → hash with Argon2
+            - `05_Обновить_словари_слов.bat` → update wordlists
             
             #### 🐧 Linux/ & 🍎 macOS/
             - `passgen-ubuntu-latest` / `passgen-macos-latest` — main binary
@@ -254,23 +232,14 @@ jobs:
             
             ### 🚀 Quick Start:
             #### Windows
-            Open `Windows/` folder → double-click any `.bat` file.
-            Or via terminal:
-            ```powershell
-            cd Windows
-            .\passgen-windows-latest.exe --random --length 16
-            ```
+            Open `Windows/` → double-click any `.bat`.
+            Or: `.\passgen-windows-latest.exe --random --length 16`
             
             #### Linux / macOS
             ```bash
             cd Linux/  # or macOS/
             chmod +x *.sh
             ./01_Сгенерировать_пароль_и_скопировать.sh
-            ```
-            
-            ### 🔧 All options:
-            ```bash
-            passgen-<os> --help
             ```
           draft: false
           prerelease: false
