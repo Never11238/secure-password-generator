@@ -76,23 +76,33 @@ def create_parser() -> argparse.ArgumentParser:
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--random", action="store_true", help="Generate random password")
     mode.add_argument("--passphrase", action="store_true", help="Generate passphrase")
-    mode.add_argument("--check", nargs="?", const="", metavar="PASSWORD", help="Check strength")
-    mode.add_argument("--hash", nargs="?", const="", metavar="PASSWORD", help="Hash password")
+    mode.add_argument(
+        "--check", nargs="?", const="", metavar="PASSWORD", help="Check strength"
+    )
+    mode.add_argument(
+        "--hash", nargs="?", const="", metavar="PASSWORD", help="Hash password"
+    )
     mode.add_argument("--update-all", action="store_true", help="Update wordlists")
 
     # === GLOBAL OPTIONS ===
     parser.add_argument(
         "-l", "--length", type=str, default="16", help="Length or range (e.g. 16-24)"
     )
-    parser.add_argument("-c", "--count", type=int, default=1, help="Number of passwords")
+    parser.add_argument(
+        "-c", "--count", type=int, default=1, help="Number of passwords"
+    )
     parser.add_argument(
         "--charset",
         choices=["lower", "upper", "digits", "symbols", "full"],
         default="full",
     )
     parser.add_argument("--no-ambiguous", action="store_true", help="Exclude l1Ii0Oo")
-    parser.add_argument("--require-all-types", action="store_true", help="Force complexity rules")
-    parser.add_argument("--min-entropy", type=float, default=80.0, help="Min entropy bits")
+    parser.add_argument(
+        "--require-all-types", action="store_true", help="Force complexity rules"
+    )
+    parser.add_argument(
+        "--min-entropy", type=float, default=80.0, help="Min entropy bits"
+    )
 
     # === HASH OPTIONS (modifier, not a mode) ===
     parser.add_argument(
@@ -170,7 +180,9 @@ def run_random(args, gen, clipboard):
 
     # Clipboard with optional auto-clear
     if args.copy and outputs:
-        _copy_with_auto_clear(clipboard, outputs[-1][0], args.clear_clipboard, args.no_warnings)
+        _copy_with_auto_clear(
+            clipboard, outputs[-1][0], args.clear_clipboard, args.no_warnings
+        )
 
     return 0
 
@@ -191,7 +203,11 @@ def run_passphrase(args, gen, clipboard):
             return 1
 
     if args.json:
-        print(json.dumps([{"passphrase": p, "entropy": m["entropy_bits"]} for p, m in outputs]))
+        print(
+            json.dumps(
+                [{"passphrase": p, "entropy": m["entropy_bits"]} for p, m in outputs]
+            )
+        )
     else:
         for pwd, meta in outputs:
             print(pwd)
@@ -199,7 +215,9 @@ def run_passphrase(args, gen, clipboard):
 
     # Clipboard with optional auto-clear
     if args.copy and outputs:
-        _copy_with_auto_clear(clipboard, outputs[-1][0], args.clear_clipboard, args.no_warnings)
+        _copy_with_auto_clear(
+            clipboard, outputs[-1][0], args.clear_clipboard, args.no_warnings
+        )
     return 0
 
 
@@ -295,4 +313,30 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    import sys
+
+    try:
+        # Run the main CLI application
+        main()
+    except SystemExit as e:
+        # argparse calls sys.exit(0) on --help or success, and sys.exit(2) on error
+        if len(sys.argv) == 1:
+            print("\n💡 Tip: Use --help to see all commands.")
+
+        # Keep the console window open so the user can read the output
+        # This prevents the window from closing immediately when double-clicked
+        try:
+            input("\n⏸️ Press Enter to close...")
+        except (EOFError, KeyboardInterrupt):
+            pass
+        sys.exit(0)
+    except Exception as e:
+        # Catch any other unexpected errors (e.g., FileNotFoundError, PermissionError)
+        print(f"\n❌ Unhandled error: {e}")
+
+        # Keep window open to show the error message
+        try:
+            input("\n⏸️ Press Enter to close...")
+        except (EOFError, KeyboardInterrupt):
+            pass
+        sys.exit(1)
