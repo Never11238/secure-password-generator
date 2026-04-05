@@ -7,12 +7,12 @@ import getpass
 import json
 import logging
 import sys
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
-from src.clipboard import Clipboard
-from src.generator import LowEntropyError, PasswordGenerator, PasswordGeneratorError
-from src.updater import Updater
-from .config import load_config, create_default_config, get_config_path
+from .clipboard import Clipboard
+from .config import create_default_config, get_config_path, load_config
+from .generator import LowEntropyError, PasswordGenerator, PasswordGeneratorError
+from .updater import Updater
 
 logger = logging.getLogger(__name__)
 
