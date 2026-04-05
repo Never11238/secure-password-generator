@@ -50,3 +50,15 @@ See [Threat Model](docs/THREAT_MODEL.md) for detailed security analysis.
 ### Security Scan Results
 
 ###[![Security Check](https://github.com/yourusername/secure-password-generator/actions/workflows/security.yml/badge.svg)](https://github.com/yourusername/secure-password-generator/actions/workflows/security.yml)
+## ⚙️ Конфигурация: `~/.passgen.toml`
+
+Чтобы не вводить одни и те же флаги каждый раз, создай файл конфигурации в домашней директории.
+
+### Быстрый старт
+```bash
+# Создать шаблон с комментариями
+passgen --init-config
+
+# Отредактировать (выбери редактор)
+notepad $env:USERPROFILE\.passgen.toml  # Windows
+nano ~/.passgen.toml                     # Linux/macOS

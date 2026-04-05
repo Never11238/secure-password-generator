@@ -12,6 +12,7 @@ from typing import Optional, Tuple
 from src.clipboard import Clipboard
 from src.generator import LowEntropyError, PasswordGenerator, PasswordGeneratorError
 from src.updater import Updater
+from .config import load_config, create_default_config, get_config_path
 
 logger = logging.getLogger(__name__)
 
@@ -76,23 +77,33 @@ def create_parser() -> argparse.ArgumentParser:
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--random", action="store_true", help="Generate random password")
     mode.add_argument("--passphrase", action="store_true", help="Generate passphrase")
-    mode.add_argument("--check", nargs="?", const="", metavar="PASSWORD", help="Check strength")
-    mode.add_argument("--hash", nargs="?", const="", metavar="PASSWORD", help="Hash password")
+    mode.add_argument(
+        "--check", nargs="?", const="", metavar="PASSWORD", help="Check strength"
+    )
+    mode.add_argument(
+        "--hash", nargs="?", const="", metavar="PASSWORD", help="Hash password"
+    )
     mode.add_argument("--update-all", action="store_true", help="Update wordlists")
 
     # === GLOBAL OPTIONS ===
     parser.add_argument(
         "-l", "--length", type=str, default="16", help="Length or range (e.g. 16-24)"
     )
-    parser.add_argument("-c", "--count", type=int, default=1, help="Number of passwords")
+    parser.add_argument(
+        "-c", "--count", type=int, default=1, help="Number of passwords"
+    )
     parser.add_argument(
         "--charset",
         choices=["lower", "upper", "digits", "symbols", "full"],
         default="full",
     )
     parser.add_argument("--no-ambiguous", action="store_true", help="Exclude l1Ii0Oo")
-    parser.add_argument("--require-all-types", action="store_true", help="Force complexity rules")
-    parser.add_argument("--min-entropy", type=float, default=80.0, help="Min entropy bits")
+    parser.add_argument(
+        "--require-all-types", action="store_true", help="Force complexity rules"
+    )
+    parser.add_argument(
+        "--min-entropy", type=float, default=80.0, help="Min entropy bits"
+    )
 
     # === HASH OPTIONS (modifier, not a mode) ===
     parser.add_argument(
@@ -170,7 +181,9 @@ def run_random(args, gen, clipboard):
 
     # Clipboard with optional auto-clear
     if args.copy and outputs:
-        _copy_with_auto_clear(clipboard, outputs[-1][0], args.clear_clipboard, args.no_warnings)
+        _copy_with_auto_clear(
+            clipboard, outputs[-1][0], args.clear_clipboard, args.no_warnings
+        )
 
     return 0
 
@@ -191,7 +204,11 @@ def run_passphrase(args, gen, clipboard):
             return 1
 
     if args.json:
-        print(json.dumps([{"passphrase": p, "entropy": m["entropy_bits"]} for p, m in outputs]))
+        print(
+            json.dumps(
+                [{"passphrase": p, "entropy": m["entropy_bits"]} for p, m in outputs]
+            )
+        )
     else:
         for pwd, meta in outputs:
             print(pwd)
@@ -199,7 +216,9 @@ def run_passphrase(args, gen, clipboard):
 
     # Clipboard with optional auto-clear
     if args.copy and outputs:
-        _copy_with_auto_clear(clipboard, outputs[-1][0], args.clear_clipboard, args.no_warnings)
+        _copy_with_auto_clear(
+            clipboard, outputs[-1][0], args.clear_clipboard, args.no_warnings
+        )
     return 0
 
 
@@ -268,7 +287,21 @@ def run_hash(args, gen):
     return 0
 
 
-def main():
+def main() -> int:
+    # Handle --init-config first (before any other logic)
+    if "--init-config" in sys.argv:
+        if create_default_config(overwrite="--force" in sys.argv):
+            print(f"✅ Config created: {get_config_path()}", file=sys.stderr)
+        else:
+            print(f"⚠️ Config already exists: {get_config_path()}", file=sys.stderr)
+            print("Use --init-config --force to overwrite", file=sys.stderr)
+        return 0
+
+    # Load user configuration
+    config = load_config()
+
+    # Apply config defaults to sys.argv (CLI args still win)
+    _apply_config_to_argv(config)
     parser = create_parser()
     args = parser.parse_args()
     setup_logging(args.verbose)
@@ -292,6 +325,64 @@ def main():
         return 0 if success else 1
 
     return 0
+
+
+def _apply_config_to_argv(config: dict[str, Any]) -> None:
+    """
+    Inject config defaults into sys.argv before argparse parsing.
+    CLI arguments always take precedence over config values.
+    """
+    # Skip if no mode specified (will show help)
+    modes = {"--random", "--passphrase", "--check", "--hash", "--update-all"}
+    if not any(arg in modes for arg in sys.argv):
+        return
+
+    # === GLOBAL SETTINGS ===
+    if config.get("auto_copy") and "--copy" not in sys.argv:
+        sys.argv.append("--copy")
+
+    if config.get("clear_clipboard_after", 0) > 0:
+        if "--clear-clipboard" not in sys.argv:
+            sys.argv.extend(["--clear-clipboard", str(config["clear_clipboard_after"])])
+
+    if config.get("suppress_warnings") and "--no-warnings" not in sys.argv:
+        sys.argv.append("--no-warnings")
+
+    if config.get("verbose") and "-v" not in sys.argv and "--verbose" not in sys.argv:
+        sys.argv.append("--verbose")
+
+    # === MODE-SPECIFIC SETTINGS ===
+    if "--random" in sys.argv:
+        rand = config.get("random", {})
+        if "--length" not in sys.argv and "-l" not in sys.argv:
+            sys.argv.extend(["--length", str(rand.get("length", 16))])
+        if rand.get("exclude_ambiguous") and "--no-ambiguous" not in sys.argv:
+            sys.argv.append("--no-ambiguous")
+        if rand.get("require_all_types") and "--require-all-types" not in sys.argv:
+            sys.argv.append("--require-all-types")
+        if "charset" in rand and "--charset" not in sys.argv:
+            sys.argv.extend(["--charset", rand["charset"]])
+
+    elif "--passphrase" in sys.argv:
+        phrase = config.get("passphrase", {})
+        if "--words" not in sys.argv:
+            sys.argv.extend(["--words", str(phrase.get("words", 4))])
+        if phrase.get("capitalize") and "--capitalize" not in sys.argv:
+            sys.argv.append("--capitalize")
+        if phrase.get("add_number") and "--add-number" not in sys.argv:
+            sys.argv.append("--add-number")
+        if phrase.get("add_symbol") and "--add-symbol" not in sys.argv:
+            sys.argv.append("--add-symbol")
+        if "separator" in phrase and "--separator" not in sys.argv:
+            sys.argv.extend(["--separator", phrase["separator"]])
+
+    elif "--hash" in sys.argv:
+        hash_cfg = config.get("hash", {})
+        if "--hash-algo" not in sys.argv:
+            sys.argv.extend(["--hash-algo", hash_cfg.get("algorithm", "pbkdf2")])
+
+    # Note: --check settings (warn_below_entropy, check_pwned)
+    # are applied inside the check logic, not via argv
 
 
 if __name__ == "__main__":
