@@ -1,8 +1,12 @@
-"""Tests for configuration management"""
+"""Tests for configuration management — with proper isolation"""
 
 import os
+import sys
 import tempfile
+from pathlib import Path
+from unittest.mock import patch
 
+# Import after potential env changes
 from src.config import (
     _deep_copy,
     _deep_merge,
@@ -32,57 +36,47 @@ def test_deep_copy():
 
 
 def test_load_config_defaults_when_missing():
+    """Test with fully isolated home directory"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        old_home = os.environ.get("HOME")
-        os.environ["HOME"] = tmpdir
-        try:
+        # Patch Path.home() to return our temp dir (works on all platforms)
+        with patch("src.config.Path.home", return_value=Path(tmpdir)):
             config = load_config()
-            assert config["random"]["length"] == 16
+            assert config["random"]["length"] == 16  # дефолт
             assert config["passphrase"]["words"] == 4
-            assert get_config_path().exists() is False
-        finally:
-            if old_home:
-                os.environ["HOME"] = old_home
-            else:
-                os.environ.pop("HOME", None)
+            assert not (Path(tmpdir) / ".passgen.toml").exists()
 
 
 def test_create_default_config():
+    """Test config creation in isolated env"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        old_home = os.environ.get("HOME")
-        os.environ["HOME"] = tmpdir
-        try:
+        with patch("src.config.Path.home", return_value=Path(tmpdir)):
+            # First call should create file
             assert create_default_config() is True
-            config_path = get_config_path()
+            config_path = Path(tmpdir) / ".passgen.toml"
             assert config_path.exists()
+
             content = config_path.read_text(encoding="utf-8")
             assert "[random]" in content
             assert "length = 24" in content
+
+            # Second call without overwrite should fail
             assert create_default_config() is False
+            # With overwrite should succeed
             assert create_default_config(overwrite=True) is True
-        finally:
-            if old_home:
-                os.environ["HOME"] = old_home
-            else:
-                os.environ.pop("HOME", None)
 
 
 def test_load_config_with_user_overrides():
+    """User config should override defaults in isolated env"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        old_home = os.environ.get("HOME")
-        os.environ["HOME"] = tmpdir
-        try:
-            config_path = get_config_path()
+        with patch("src.config.Path.home", return_value=Path(tmpdir)):
+            # Create config with custom values
+            config_path = Path(tmpdir) / ".passgen.toml"
             config_path.write_text(
                 "[random]\nlength = 32\nrequire_all_types = true\n", encoding="utf-8"
             )
+
             config = load_config()
-            assert config["random"]["length"] == 32
+            assert config["random"]["length"] == 32  # overridden
             assert config["random"]["require_all_types"] is True
-            assert config["random"]["min_entropy"] == 80.0
-            assert config["passphrase"]["words"] == 4
-        finally:
-            if old_home:
-                os.environ["HOME"] = old_home
-            else:
-                os.environ.pop("HOME", None)
+            assert config["random"]["min_entropy"] == 80.0  # default preserved
+            assert config["passphrase"]["words"] == 4  # default preserved
