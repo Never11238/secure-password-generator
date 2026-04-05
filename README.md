@@ -711,4 +711,14 @@ tests/
 >
 > [🔗 GitHub](https://github.com/Never11238/secure-password-generator) · [📦 Releases](https://github.com/Never11238/secure-password-generator/releases) · [🐛 Issues](https://github.com/Never11238/secure-password-generator/issues)
 
-```text
+
+---
+## Тест форматирования
+
+**Жирный текст** должен быть жирным.
+
+*Курсив* должен быть курсивом.
+
+`Код` должен быть моноширинным.
+
+[Ссылка](https://example.com) должна быть кликабельной.
