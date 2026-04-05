@@ -1,6 +1,18 @@
-﻿# 🔐 Secure Password Generator v2.6.0
+﻿# ✅ ЧИСТЫЙ `README.md` — КОПИРУЙ И ВСТАВЛЯЙ
+
+Проблема была в том, что после первого заголовка стояла строка ```markdown, которая превращала **весь остальной документ в код**. Я убрал её и подготовил полностью чистый файл.
+
+**Инструкция:**
+
+1. Открой `README.md` в редакторе
+2. Удали **всё** содержимое
+3. Скопируй код ниже **целиком** (от первой до последней строки)
+4. Вставь и сохрани файл
+5. Запушь изменения
 
 ```markdown
+# 🔐 Secure Password Generator v2.6.0
+
 **Генератор паролей и пассфраз**, соответствующий стандарту **NIST SP 800-63B Rev. 4 (2025)**. Использует криптографически стойкий генератор случайных чисел (CSPRNG) для максимальной безопасности.
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
@@ -710,15 +722,3 @@ tests/
 > **Secure Password Generator v2.6.0** | Соответствует NIST SP 800-63B Rev. 4 (2025)
 >
 > [🔗 GitHub](https://github.com/Never11238/secure-password-generator) · [📦 Releases](https://github.com/Never11238/secure-password-generator/releases) · [🐛 Issues](https://github.com/Never11238/secure-password-generator/issues)
-
-
----
-## Тест форматирования
-
-**Жирный текст** должен быть жирным.
-
-*Курсив* должен быть курсивом.
-
-`Код` должен быть моноширинным.
-
-[Ссылка](https://example.com) должна быть кликабельной.
