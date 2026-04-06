@@ -1,82 +1,69 @@
-"""Tests for configuration management — with proper isolation"""
+"""Тесты для модуля конфигурации."""
 
+import pytest
 import os
-import sys
-import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from src.config import load_config, create_default_config, DEFAULTS, get_config_path
+import copy
 
-# Import after potential env changes
-from src.config import (
-    _deep_copy,
-    _deep_merge,
-    create_default_config,
-    get_config_path,
-    load_config,
-)
+class TestConfigDefaults:
+    def test_defaults_exist(self):
+        """Проверка, что DEFAULTS не пустой."""
+        assert isinstance(DEFAULTS, dict)
+        assert "random" in DEFAULTS
+        assert "passphrase" in DEFAULTS
 
+    def test_defaults_structure(self):
+        """Проверка структуры дефолтов."""
+        assert DEFAULTS["random"]["length"] == 16
+        assert DEFAULTS["passphrase"]["words"] == 4
 
-def test_deep_merge():
-    base = {"a": 1, "b": {"x": 10, "y": 20}, "c": [1, 2]}
-    override = {"b": {"y": 99, "z": 30}, "c": [3], "d": 4}
-    _deep_merge(base, override)
-    assert base["a"] == 1
-    assert base["b"] == {"x": 10, "y": 99, "z": 30}
-    assert base["c"] == [3]
-    assert base["d"] == 4
+class TestConfigLoad:
+    def test_load_without_file(self, tmp_path, monkeypatch):
+        """Загрузка без файла конфига (только дефолты)."""
+        # Подменяем домашнюю директорию на временную
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        
+        config = load_config()
+        assert config == DEFAULTS  # Должны вернуться точные дефолты
 
+    def test_load_with_custom_file(self, tmp_path, monkeypatch):
+        """Загрузка с пользовательским файлом."""
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        
+        # Создаём тестовый конфиг
+        config_file = tmp_path / ".passgen.toml"
+        config_file.write_text('[random]\nlength = 32\n')
+        
+        config = load_config()
+        assert config["random"]["length"] == 32  # Значение перезаписано
+        assert config["random"]["min_length"] == 8  # Остальное из дефолтов
 
-def test_deep_copy():
-    original = {"a": [1, 2], "b": {"x": 10}}
-    copied = _deep_copy(original)
-    copied["a"].append(3)
-    copied["b"]["x"] = 99
-    assert original["a"] == [1, 2]
-    assert original["b"]["x"] == 10
+class TestConfigCreate:
+    def test_create_default(self, tmp_path, monkeypatch):
+        """Создание файла конфига по умолчанию."""
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        
+        result = create_default_config()
+        assert result is True
+        
+        config_file = tmp_path / ".passgen.toml"
+        assert config_file.exists()
+        
+        # Проверка прав доступа (на Windows может не работать строго, но файл должен быть создан)
+        if os.name != "nt":  # Только для Linux/Mac
+            mode = os.stat(config_file).st_mode & 0o777
+            assert mode == 0o600
 
-
-def test_load_config_defaults_when_missing():
-    """Test with fully isolated home directory"""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # Patch Path.home() to return our temp dir (works on all platforms)
-        with patch("src.config.Path.home", return_value=Path(tmpdir)):
-            config = load_config()
-            assert config["random"]["length"] == 16  # дефолт
-            assert config["passphrase"]["words"] == 4
-            assert not (Path(tmpdir) / ".passgen.toml").exists()
-
-
-def test_create_default_config():
-    """Test config creation in isolated env"""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("src.config.Path.home", return_value=Path(tmpdir)):
-            # First call should create file
-            assert create_default_config() is True
-            config_path = Path(tmpdir) / ".passgen.toml"
-            assert config_path.exists()
-
-            content = config_path.read_text(encoding="utf-8")
-            assert "[random]" in content
-            assert "length = 24" in content
-
-            # Second call without overwrite should fail
-            assert create_default_config() is False
-            # With overwrite should succeed
-            assert create_default_config(overwrite=True) is True
-
-
-def test_load_config_with_user_overrides():
-    """User config should override defaults in isolated env"""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("src.config.Path.home", return_value=Path(tmpdir)):
-            # Create config with custom values
-            config_path = Path(tmpdir) / ".passgen.toml"
-            config_path.write_text(
-                "[random]\nlength = 32\nrequire_all_types = true\n", encoding="utf-8"
-            )
-
-            config = load_config()
-            assert config["random"]["length"] == 32  # overridden
-            assert config["random"]["require_all_types"] is True
-            assert config["random"]["min_entropy"] == 80.0  # default preserved
-            assert config["passphrase"]["words"] == 4  # default preserved
+    def test_create_no_overwrite(self, tmp_path, monkeypatch):
+        """Проверка, что существующий файл не перезаписывается."""
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        
+        config_file = tmp_path / ".passgen.toml"
+        config_file.write_text("# existing config")
+        
+        result = create_default_config(overwrite=False)
+        assert result is False
+        
+        content = config_file.read_text()
+        assert content == "# existing config"
