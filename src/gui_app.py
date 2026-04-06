@@ -14,7 +14,15 @@ import json
 import customtkinter as ctk
 from src.generator import PasswordGenerator
 from src.config import load_config
+import customtkinter as ctk
+from src.generator import PasswordGenerator
+from src.config import load_config
 
+try:
+    import tomli_w  # type: ignore  # для записи TOML
+except ImportError:
+    tomli_w = None  # type: ignore
+    logger.warning("tomli_w not installed: theme preferences won't be saved to file")
 # Настройка логирования
 logger = logging.getLogger(__name__)
 
@@ -35,6 +43,8 @@ class PassGenApp(ctk.CTk):
         self.geometry("520x550")
         ctk.set_appearance_mode("System")
         ctk.set_default_color_theme("blue")
+
+        self._load_theme_preference()
 
         self.config = load_config()
         default_length = self.config.get("random", {}).get("length", 16)
@@ -143,6 +153,50 @@ class PassGenApp(ctk.CTk):
             fg_color="#808080",
             hover_color="#505050",
         ).pack(side="left", padx=5)
+        # ================= НАСТРОЙКА АВТООЧИСТКИ БУФЕРА =================
+        self.frame_clipboard = ctk.CTkFrame(self.tab_gen)
+        self.frame_clipboard.pack(pady=10, fill="x", padx=20)
+
+        ctk.CTkLabel(
+            self.frame_clipboard, text="Автоочистка буфера:", font=("Arial", 11, "bold")
+        ).pack(side="left", padx=10)
+
+        # Получаем текущее значение из конфига
+        current_clear_time = self.config.get("gui", {}).get("auto_clear_clipboard", 30)
+        self.clipboard_time_var = ctk.StringVar(value=str(current_clear_time))
+
+        self.combo_clipboard = ctk.CTkOptionMenu(
+            self.frame_clipboard,
+            variable=self.clipboard_time_var,
+            values=["10", "30", "60", "120", "Не очищать"],
+            command=self.on_clipboard_time_change,
+            width=120,
+        )
+        self.combo_clipboard.pack(side="left", padx=10)
+
+        ctk.CTkLabel(self.frame_clipboard, text="сек", font=("Arial", 10)).pack(
+            side="left", padx=5
+        )
+        # ================= ПЕРЕКЛЮЧАТЕЛЬ ТЕМЫ =================
+        self.frame_theme = ctk.CTkFrame(self.tab_gen)
+        self.frame_theme.pack(pady=5, fill="x", padx=20)
+
+        ctk.CTkLabel(
+            self.frame_theme, text="🌙 Тема интерфейса:", font=("Arial", 11, "bold")
+        ).pack(side="left", padx=10)
+
+        # Получаем текущую тему из конфига
+        current_theme = self.config.get("gui", {}).get("theme", "System")
+        self.theme_var = ctk.StringVar(value=current_theme)
+
+        self.combo_theme = ctk.CTkOptionMenu(
+            self.frame_theme,
+            variable=self.theme_var,
+            values=["System", "Light", "Dark"],
+            command=self.on_theme_change,
+            width=100,
+        )
+        self.combo_theme.pack(side="left", padx=10)
 
     def _setup_checker_tab(self):
         self.label_title2 = ctk.CTkLabel(
@@ -178,6 +232,17 @@ class PassGenApp(ctk.CTk):
             self.label_length.configure(text="Слов: 4")
         self._update_presets()
 
+    def _load_theme_preference(self) -> None:
+        """Загрузить предпочтительную тему из конфига."""
+        try:
+            config = load_config()
+            theme = config.get("gui", {}).get("theme", "System")
+            ctk.set_appearance_mode(theme)
+            logger.info(f"Theme loaded: {theme}")
+        except Exception as e:
+            logger.warning(f"Failed to load theme preference: {e}")
+            ctk.set_appearance_mode("System")
+
     def update_slider_label(self, val):
         mode = self.mode_switch.get()
         label = "Длина" if "Пароль" in mode else "Слов"
@@ -187,6 +252,67 @@ class PassGenApp(ctk.CTk):
         """Установить длину пароля из пресета."""
         self.slider_length.set(length)
         self.update_slider_label(length)
+
+    def on_clipboard_time_change(self, value: str) -> None:
+        """Обработка изменения времени автоочистки буфера."""
+        logger.info(f"Auto-clear clipboard time changed to: {value}")
+        # Здесь можно добавить сохранение в файл конфига, если нужно
+
+    def on_theme_change(self, value: str) -> None:
+        """Обработка изменения темы интерфейса."""
+        try:
+            ctk.set_appearance_mode(value)
+            logger.info(f"Theme changed to: {value}")
+
+            # Сохраняем выбор в конфиг (опционально: можно добавить запись в файл)
+            # Для простоты пока только в памяти
+        except Exception as e:
+            logger.error(f"Failed to change theme: {e}")
+
+    def on_theme_change(self, value: str) -> None:
+        """Обработка изменения темы интерфейса."""
+        try:
+            ctk.set_appearance_mode(value)
+            logger.info(f"Theme changed to: {value}")
+
+            # ← ДОБАВЬ ЭТУ СТРОКУ: сохранить в файл
+            self._save_theme_preference(value)
+
+        except Exception as e:
+            logger.error(f"Failed to change theme: {e}")
+
+    # ← ← ← ВСТАВЬ НОВЫЙ МЕТОД НИЖЕ:
+    def _save_theme_preference(self, theme: str) -> None:
+        """Сохранить выбор темы в файл конфигурации."""
+        if tomli_w is None:
+            logger.warning("tomli_w not available, skipping theme save")
+            return
+
+        try:
+            from src.config import get_config_path
+            import tomli  # type: ignore  # для чтения TOML
+
+            config_path = get_config_path()
+
+            # Загружаем текущий конфиг (если есть)
+            config = {}
+            if config_path.exists():
+                with open(config_path, "rb") as f:
+                    config = tomli.load(f)
+
+            # Обновляем тему в секции [gui]
+            if "gui" not in config:
+                config["gui"] = {}
+            config["gui"]["theme"] = theme
+
+            # Записываем обратно в файл
+            with open(config_path, "wb") as f:
+                tomli_w.dump(config, f)
+
+            logger.info(f"Theme preference saved to {config_path}: {theme}")
+
+        except Exception as e:
+            logger.error(f"Failed to save theme preference: {e}")
 
     def _create_preset_buttons(self, presets: list) -> None:
         """Создать кнопки пресетов (с полной очисткой старых)."""
@@ -244,15 +370,49 @@ class PassGenApp(ctk.CTk):
             self.entry_output.configure(state="readonly")
 
     def copy_to_clip(self):
+        """Копировать пароль в буфер с автоочисткой."""
         pwd = self.entry_output.get()
         if pwd and not pwd.startswith("Ошибка"):
             self.clipboard_clear()
             self.clipboard_append(pwd)
             self.update()
-            self.label_strength.configure(text="✅ Скопировано!", text_color="green")
+
+            # Получаем время автоочистки из UI
+            clear_time = self.clipboard_time_var.get()
+
+            if clear_time != "Не очищать":
+                clear_seconds = int(clear_time)
+
+                # Показываем уведомление с таймером
+                self.label_strength.configure(
+                    text=f"✅ Скопировано! Очистка через {clear_seconds} сек",
+                    text_color="green",
+                )
+
+                logger.info(f"Scheduling clipboard clear in {clear_seconds} seconds")
+
+                # Планируем очистку буфера (в миллисекундах)
+                self.after(clear_seconds * 1000, self._clear_clipboard_silent)
+            else:
+                self.label_strength.configure(
+                    text="✅ Скопировано!", text_color="green"
+                )
+
+            # Сбрасываем текст статуса через 2 секунды
             self.after(
-                1500, lambda: self.label_strength.configure(text="Сила пароля: —")
+                2000, lambda: self.label_strength.configure(text="Сила пароля: —")
             )
+
+    def _clear_clipboard_silent(self) -> None:
+        """Тихая очистка буфера обмена (гарантированная)."""
+        try:
+            # Надёжный способ очистки: записать пустую строку
+            self.clipboard_clear()
+            self.clipboard_append("")  # ← КЛЮЧЕВОЕ: перезаписываем пустым
+            self.update()  # ← Принудительно обновляем GUI
+            logger.info("Clipboard auto-cleared (reliable method)")
+        except Exception as e:
+            logger.error(f"Failed to auto-clear clipboard: {e}")
 
     def on_check_input(self, *args):
         pwd = self.check_var.get()
