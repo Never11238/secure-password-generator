@@ -362,6 +362,15 @@ class PassGenApp(ctk.CTk):
             self.entry_output.configure(state="readonly")
 
             self.update_strength_ui(meta.get("entropy", 0) or len(pwd) * 6.55)
+
+        except PasswordGenerator.LowEntropyError as e:
+            # ← ДОБАВЬ ЭТОТ БЛОК: показать предупреждение, но не блокировать
+            logger.warning(f"Low entropy warning: {e}")
+            self.entry_output.configure(state="normal")
+            self.entry_output.delete(0, "end")
+            self.entry_output.insert(0, f"⚠️ {e}")
+            self.entry_output.configure(state="readonly")
+
         except Exception as e:
             logger.error(f"Generation error: {e}")
             self.entry_output.configure(state="normal")
