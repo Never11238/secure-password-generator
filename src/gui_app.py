@@ -7,6 +7,16 @@ import sys
 import os
 import math
 import re
+import logging
+import urllib.request
+import json
+
+import customtkinter as ctk
+from src.generator import PasswordGenerator
+from src.config import load_config
+
+# Настройка логирования
+logger = logging.getLogger(__name__)
 
 # Fix PyInstaller path resolution
 if getattr(sys, "frozen", False):
@@ -15,10 +25,6 @@ else:
     BASE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_PATH not in sys.path:
     sys.path.insert(0, BASE_PATH)
-
-import customtkinter as ctk
-from src.generator import PasswordGenerator
-from src.config import load_config
 
 
 class PassGenApp(ctk.CTk):
@@ -103,7 +109,7 @@ class PassGenApp(ctk.CTk):
             text="🔄 Сгенерировать",
             command=self.generate,
             fg_color="green",
-            hover_color="#006400",  # Тёмно-зелёный (hex вместо "darkgreen")
+            hover_color="#006400",
         ).pack(side="left", padx=5)
 
         # Кнопка 2: Копировать
@@ -112,21 +118,16 @@ class PassGenApp(ctk.CTk):
             text="📋 Копировать",
             command=self.copy_to_clip,
             fg_color="#1f6aa5",
-            hover_color="#144870",  # Тёмно-синий (hex)
+            hover_color="#144870",
         ).pack(side="left", padx=5)
 
-        # Кнопка 3: Проверить обновления (НОВАЯ)
+        # Кнопка 3: Проверить обновления
         ctk.CTkButton(
             self.frame_buttons,
             text="🔍 Обновления",
             command=self.check_for_updates,
-            # ✅ Правильный способ задать серый цвет:
-            # Вариант А: Простой hex-код
             fg_color="#808080",
             hover_color="#505050",
-            # Вариант Б (лучше): Адаптивный под тему (раскомментируй, если хочешь)
-            # fg_color=("gray75", "gray25"),  # светло-серый для Light, тёмный для Dark
-            # hover_color=("gray60", "gray35"),
         ).pack(side="left", padx=5)
 
     def _setup_checker_tab(self):
@@ -177,21 +178,9 @@ class PassGenApp(ctk.CTk):
             )
 
             if "Пароль" in mode:
-                pwd, meta = (
-                    gen.generate_random()
-                    if hasattr(gen, "generate_random")
-                    else (gen.generate(), {})
-                )
+                pwd, meta = gen.generate_random()
             else:
-                pwd, meta = (
-                    gen.generate_passphrase(words=length)
-                    if hasattr(gen, "generate_passphrase")
-                    else (
-                        gen.generate(mode="passphrase", words=length)
-                        if hasattr(gen, "generate")
-                        else ("N/A", {})
-                    )
-                )
+                pwd, meta = gen.generate_passphrase(words=length)
 
             self.entry_output.configure(state="normal")
             self.entry_output.delete(0, "end")
@@ -200,6 +189,7 @@ class PassGenApp(ctk.CTk):
 
             self.update_strength_ui(meta.get("entropy", 0) or len(pwd) * 6.55)
         except Exception as e:
+            logger.error(f"Generation error: {e}")
             self.entry_output.configure(state="normal")
             self.entry_output.delete(0, "end")
             self.entry_output.insert(0, f"Ошибка: {e}")
@@ -272,14 +262,10 @@ class PassGenApp(ctk.CTk):
 
     def check_for_updates(self):
         """Проверяет наличие новой версии на GitHub"""
-        import urllib.request
-        import json
-
         self.label_strength.configure(text="🔄 Проверка...", text_color="blue")
         self.update()
 
         try:
-            # GitHub API ТРЕБУЕТ заголовок User-Agent
             url = "https://api.github.com/repos/Never11238/secure-password-generator/releases/latest"
             req = urllib.request.Request(
                 url,
@@ -293,15 +279,12 @@ class PassGenApp(ctk.CTk):
                 data = json.loads(response.read().decode())
 
             latest_tag = data.get("tag_name", "v0.0.0")
-            latest_url = data.get("html_url", "")
-            current_version = "v2.6.0"  # <-- ОБНОВЛЯЙ при новом релизе!
+            current_version = "v2.6.0"
 
-            # Простое сравнение версий (работает для v2.6.0 < v2.7.0)
             if latest_tag > current_version:
                 self.label_strength.configure(
                     text=f"🆕 Доступно: {latest_tag}!", text_color="green"
                 )
-                # ... (диалог обновления, код из предыдущего ответа) ...
             else:
                 self.label_strength.configure(
                     text="✅ Актуальная версия", text_color="green"
@@ -311,39 +294,30 @@ class PassGenApp(ctk.CTk):
                 )
 
         except urllib.error.HTTPError as e:
-            print(f"HTTP Error {e.code}: {e.reason}")
-
+            logger.warning(f"HTTP Error {e.code}: {e.reason}")
             if e.code == 404:
-                # Репозиторий не найден или релиза нет
                 self.label_strength.configure(
                     text="⚠️ Релиз не опубликован", text_color="orange"
                 )
-                # Опционально: показать подсказку пользователю
-                print(
-                    "💡 Проверь: 1) Репозиторий публичный 2) Релиз опубликован (не Draft)"
-                )
-
             elif e.code == 403:
-                # Лимит запросов или доступ к приватному репо
                 self.label_strength.configure(
                     text="⚠️ GitHub: доступ ограничен", text_color="orange"
                 )
-                print("💡 Если репо приватный — добавь токен в код (см. документацию)")
             else:
                 self.label_strength.configure(
                     text=f"⚠️ Ошибка: {e.code}", text_color="orange"
                 )
 
         except urllib.error.URLError as e:
-            print(f"URL Error: {e.reason}")
+            logger.warning(f"URL Error: {e.reason}")
             self.label_strength.configure(text="⚠️ Нет соединения", text_color="orange")
 
         except json.JSONDecodeError as e:
-            print(f"JSON Decode Error: {e}")
+            logger.warning(f"JSON Decode Error: {e}")
             self.label_strength.configure(text="⚠️ Ошибка ответа", text_color="orange")
 
         except Exception as e:
-            print(f"Update check failed: {type(e).__name__}: {e}")
+            logger.error(f"Update check failed: {type(e).__name__}: {e}")
             self.label_strength.configure(
                 text="⚠️ Ошибка проверки", text_color="orange"
             )

@@ -208,7 +208,13 @@ class PasswordGenerator:
                         continue
 
                 if password.lower() in self.blacklist:
-                    continue
+                    if attempt < max_attempts:
+                        continue
+                    else:
+                        raise WeakPasswordError(
+                            f"Generated password is in common breach database "
+                            f"(attempt {attempt}/{max_attempts})"
+                        )
 
                 if self.enable_history and self._check_duplicate(password):
                     continue
@@ -236,7 +242,9 @@ class PasswordGenerator:
                     require_all_types=require_all_types,
                 )
 
-                logger.info(f"Password generated: {length} chars, {entropy:.2f} bits entropy")
+                logger.info(
+                    f"Password generated: {length} chars, {entropy:.2f} bits entropy"
+                )
 
                 return password, {
                     "entropy_bits": round(entropy, 2),
@@ -352,7 +360,9 @@ class PasswordGenerator:
         else:
             raise PasswordGeneratorError(f"Unsupported algorithm: {algorithm}")
 
-    def _hash_pbkdf2(self, password: str, salt: Optional[bytes], iterations: int) -> Dict[str, str]:
+    def _hash_pbkdf2(
+        self, password: str, salt: Optional[bytes], iterations: int
+    ) -> Dict[str, str]:
         """PBKDF2-HMAC-SHA256 hashing."""
         if salt is None:
             salt = secrets.token_bytes(32)
@@ -452,7 +462,9 @@ class PasswordGenerator:
         """Log metadata without password."""
         if not self.enable_logging:
             return
-        safe_kwargs = {k: v for k, v in kwargs.items() if k not in ("password", "pwd", "secret")}
+        safe_kwargs = {
+            k: v for k, v in kwargs.items() if k not in ("password", "pwd", "secret")
+        }
         log_entry = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "event": "password_generated",
