@@ -1,21 +1,4 @@
-"""
-Password Generator Module.
-
-Implements secure password generation following NIST SP 800-63B Rev. 4 (2025)
-and ISO 27002:2021 standards. Uses CSPRNG (secrets module) for all random operations.
-
-Security Features:
-    - CSPRNG via secrets module (NOT random)
-    - Minimum entropy enforcement (default 80 bits)
-    - Blacklist checking against known weak passwords
-    - Secure memory handling (best effort)
-    - PBKDF2-HMAC-SHA256 hashing with salt
-
-References:
-    - NIST SP 800-63B: https://pages.nist.gov/800-63-3/sp800-63b.html
-    - ISO 27002:2021: Information security controls
-    - Shannon Entropy: H = L x log2(N)
-"""
+"""Cryptographically secure password generator module (NIST SP 800-63B compliant)."""
 
 import hashlib
 import json
@@ -71,19 +54,7 @@ class LowEntropyError(PasswordGeneratorError):
 
 
 class PasswordGenerator:
-    """
-    Cryptographically secure password generator.
-
-    Implements CSPRNG using Python secrets module (not random).
-    Compliant with NIST SP 800-63B Rev. 4 (2025).
-
-    Attributes:
-        min_length: Minimum password length (NIST recommends 8+)
-        max_length: Maximum password length (NIST allows 64+)
-        min_entropy: Minimum entropy in bits (default: 80)
-        blacklist: Set of weak passwords to avoid
-        password_history: Hashed history of generated passwords (for no-repeat)
-    """
+    """Cryptographically secure password generator (CSPRNG via secrets module)."""
 
     # Character sets (NIST SP 800-63B compliant)
     LOWERCASE = "abcdefghijklmnopqrstuvwxyz"
