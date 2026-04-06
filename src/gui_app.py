@@ -90,7 +90,21 @@ class PassGenApp(ctk.CTk):
         )
         self.slider_length.set(default_length)
         self.slider_length.pack(side="right", padx=10, fill="x", expand=True)
+        # Пресеты длины пароля / количества слов
+        self.frame_presets = ctk.CTkFrame(self.tab_gen)
+        self.frame_presets.pack(pady=5, fill="x", padx=20)
 
+        self.label_presets = ctk.CTkLabel(
+            self.frame_presets, text="Быстрые пресеты:", font=("Arial", 10)
+        )
+        self.label_presets.pack(side="left", padx=10)
+
+        # Контейнер для кнопок пресетов
+        self.frame_preset_buttons = ctk.CTkFrame(self.frame_presets)
+        self.frame_preset_buttons.pack(side="left", fill="x", expand=True)
+
+        # Создаём пресеты для пароля (по умолчанию)
+        self._create_preset_buttons([8, 12, 16, 20, 32])
         self.entry_output = ctk.CTkEntry(
             self.tab_gen,
             placeholder_text="Результат появится здесь...",
@@ -162,11 +176,45 @@ class PassGenApp(ctk.CTk):
             self.slider_length.configure(from_=3, to=8, number_of_steps=5)
             self.slider_length.set(4)
             self.label_length.configure(text="Слов: 4")
+        self._update_presets()
 
     def update_slider_label(self, val):
         mode = self.mode_switch.get()
         label = "Длина" if "Пароль" in mode else "Слов"
         self.label_length.configure(text=f"{label}: {int(val)}")
+
+    def set_preset_length(self, length: int) -> None:
+        """Установить длину пароля из пресета."""
+        self.slider_length.set(length)
+        self.update_slider_label(length)
+
+    def _create_preset_buttons(self, presets: list) -> None:
+        """Создать кнопки пресетов (с полной очисткой старых)."""
+        # Полная очистка всех виджетов внутри фрейма кнопок
+        for widget in self.frame_preset_buttons.winfo_children():
+            widget.destroy()
+
+        # Небольшая задержка для гарантированного обновления интерфейса (опционально)
+        self.update_idletasks()
+
+        # Создаём новые кнопки
+        for preset_value in presets:
+            ctk.CTkButton(
+                self.frame_preset_buttons,
+                text=str(preset_value),
+                width=45,
+                command=lambda v=preset_value: self.set_preset_length(v),
+            ).pack(side="left", padx=3)
+
+    def _update_presets(self) -> None:
+        """Обновить пресеты в зависимости от режима."""
+        mode = self.mode_switch.get()
+        if "Пароль" in mode:
+            # Пресеты для длины пароля (символы)
+            self._create_preset_buttons([8, 12, 16, 20, 32])
+        else:
+            # Пресеты для количества слов (фразы)
+            self._create_preset_buttons([3, 4, 5, 6, 8])
 
     def generate(self):
         try:
